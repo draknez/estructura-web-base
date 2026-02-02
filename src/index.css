@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* 
+  En Tailwind CSS v4, el modo oscuro usa 'media' por defecto.
+  Sobrescribimos la variante 'dark' para que funcione con la clase '.dark' (strategy: 'class').
+*/
+@variant dark (&:where(.dark, .dark *));
+
+/* 
+  Configuramos el esquema de color del navegador para que coincida
+  (afecta scrollbars, inputs nativos, etc.)
+*/
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  :root.dark {
+    color-scheme: dark;
+  }
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
