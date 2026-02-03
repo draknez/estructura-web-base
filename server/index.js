@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import { Validators } from './validators.js';
 
 dotenv.config();
 
@@ -294,7 +295,16 @@ app.delete('/api/admin/user/:id', verifyToken, verifySuperAdmin, (req, res) => {
 
 app.post('/api/register', authLimiter, (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Faltan datos' });
+
+  // 1. Validación de Datos (Sin dependencias)
+  const error = Validators.validate(req.body, {
+    username: Validators.username,
+    password: Validators.password
+  });
+
+  if (error) {
+    return res.status(400).json({ error });
+  }
   
   const hashedPassword = bcrypt.hashSync(password, 8);
   
