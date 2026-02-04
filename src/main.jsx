@@ -12,6 +12,7 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import Dashboard from './pages/private/Dashboard';
 import AdminPanel from './pages/private/AdminPanel';
+import GroupsPage from './pages/private/GroupsPage';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -30,6 +31,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route element={<PrivateLayout />}>
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="admin" element={<AdminPanel />} />
+              <Route path="groups" element={<GroupsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

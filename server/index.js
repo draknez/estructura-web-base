@@ -84,6 +84,15 @@ async function initDB() {
       FOREIGN KEY(role_id) REFERENCES roles(id)
     )`);
 
+    // 4. Tabla Grupos (Jerárquica)
+    db.run(`CREATE TABLE IF NOT EXISTS groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      parent_id INTEGER,
+      FOREIGN KEY(parent_id) REFERENCES groups(id)
+    )`);
+
     // Insertar roles por defecto
     try {
       db.run("INSERT INTO roles (name) VALUES ('usr')");
@@ -112,6 +121,33 @@ async function initDB() {
     } catch (alterErr) {
       console.error("Error en migración is_active:", alterErr);
     }
+  }
+
+  // Migración: Columna group_id en users
+  try {
+    db.exec("SELECT group_id FROM users LIMIT 1");
+  } catch (e) {
+    console.log("MIGRACIÓN: Añadiendo columna 'group_id'...");
+    try {
+      db.run("ALTER TABLE users ADD COLUMN group_id INTEGER");
+      needsSave = true;
+    } catch (alterErr) {
+      console.error("Error en migración group_id:", alterErr);
+    }
+  }
+
+  // Migración: Crear tabla groups si no existe (para bases de datos antiguas)
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      parent_id INTEGER,
+      FOREIGN KEY(parent_id) REFERENCES groups(id)
+    )`);
+    needsSave = true;
+  } catch (e) {
+    console.error("Error creando tabla groups:", e);
   }
 
   if (needsSave) {
@@ -190,7 +226,11 @@ app.get('/api/users/status', (req, res) => {
 // ADMIN: Obtener todos los usuarios con detalle
 app.get('/api/admin/users', verifyToken, verifyAdmin, (req, res) => {
   try {
-    const stmt = db.prepare("SELECT id, username, is_active FROM users");
+    const stmt = db.prepare(`
+      SELECT u.id, u.username, u.is_active, u.group_id, g.name as group_name 
+      FROM users u
+      LEFT JOIN groups g ON u.group_id = g.id
+    `);
     const users = [];
     while(stmt.step()) {
       const row = stmt.getAsObject();
@@ -276,6 +316,39 @@ app.post('/api/admin/toggle-status', verifyToken, verifyAdmin, (req, res) => {
     }
 
     res.json({ success: true, newStatus });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ADMIN: Editar Usuario (Asignar Grupo, etc)
+app.put('/api/admin/user/:id', verifyToken, verifyAdmin, (req, res) => {
+  const targetId = req.params.id;
+  const { group_id } = req.body;
+
+  try {
+    // Validar grupo si se envía
+    if (group_id) {
+      const groupStmt = db.prepare("SELECT id FROM groups WHERE id = ?");
+      groupStmt.bind([group_id]);
+      if (!groupStmt.step()) {
+        groupStmt.free();
+        return res.status(400).json({ error: 'El grupo especificado no existe.' });
+      }
+      groupStmt.free();
+    }
+
+    // Actualizar usuario
+    // Nota: Si group_id es null/undefined, lo ponemos a NULL en la BD si se envía explícitamente null, 
+    // o lo ignoramos si no se envía. Aquí asumiremos que se quiere actualizar.
+    
+    // Convertir '' a null para SQL
+    const finalGroupId = group_id === "" ? null : group_id;
+
+    db.run("UPDATE users SET group_id = ? WHERE id = ?", [finalGroupId, targetId]);
+    saveDB();
+    
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -446,5 +519,85 @@ function getRolesForUser(userId) {
   stmt.free();
   return roles;
 }
+
+// Helper: Calcular profundidad de un grupo
+function getGroupDepth(parentId, currentDepth = 1) {
+  if (!parentId) return currentDepth;
+  if (currentDepth >= 5) return currentDepth; // Límite alcanzado
+
+  const stmt = db.prepare("SELECT parent_id FROM groups WHERE id = ?");
+  stmt.bind([parentId]);
+  
+  if (stmt.step()) {
+    const row = stmt.getAsObject();
+    stmt.free();
+    return getGroupDepth(row.parent_id, currentDepth + 1);
+  }
+  
+  stmt.free();
+  return currentDepth;
+}
+
+// --- GRUPOS ENDPOINTS ---
+
+app.get('/api/groups', verifyToken, (req, res) => {
+  try {
+    const stmt = db.prepare(`
+      SELECT g.*, p.name as parent_name 
+      FROM groups g 
+      LEFT JOIN groups p ON g.parent_id = p.id
+    `);
+    const groups = [];
+    while(stmt.step()) {
+      groups.push(stmt.getAsObject());
+    }
+    stmt.free();
+    res.json(groups);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/groups', verifyToken, verifyAdmin, (req, res) => {
+  const { name, description, parent_id } = req.body;
+  
+  if (!name) return res.status(400).json({ error: 'Nombre requerido' });
+
+  // Validar profundidad
+  if (parent_id) {
+    const depth = getGroupDepth(parent_id);
+    if (depth >= 5) {
+      return res.status(400).json({ error: 'La profundidad máxima de grupos es 5.' });
+    }
+  }
+
+  try {
+    db.run("INSERT INTO groups (name, description, parent_id) VALUES (?, ?, ?)", [name, description, parent_id]);
+    saveDB();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/groups/:id', verifyToken, verifyAdmin, (req, res) => {
+  const id = req.params.id;
+  
+  try {
+    // 1. Promover subgrupos a Raíz (parent_id = NULL)
+    db.run("UPDATE groups SET parent_id = NULL WHERE parent_id = ?", [id]);
+
+    // 2. Liberar usuarios (group_id = NULL)
+    db.run("UPDATE users SET group_id = NULL WHERE group_id = ?", [id]);
+
+    // 3. Eliminar el grupo
+    db.run("DELETE FROM groups WHERE id = ?", [id]);
+    
+    saveDB();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => console.log(`📡 Server: http://localhost:${PORT}`));

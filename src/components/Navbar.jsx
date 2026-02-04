@@ -45,7 +45,10 @@ const Navbar = () => {
               <NavLink to="/dashboard">Panel</NavLink>
               <NavLink to="/">Estado</NavLink>
               {(user.roles?.includes('adm') || user.roles?.includes('Sa')) && (
-                <NavLink to="/admin">Admin</NavLink>
+                <>
+                  <NavLink to="/admin">Admin</NavLink>
+                  <NavLink to="/groups">Grupos</NavLink>
+                </>
               )}
             </nav>
           )}
@@ -138,9 +141,14 @@ const Navbar = () => {
                  Estado Monitor
               </NavLink>
               {(user.roles?.includes('adm') || user.roles?.includes('Sa')) && (
-                 <NavLink to="/admin" className="block py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-lg" onClick={handleLinkClick}>
-                    Administración
-                 </NavLink>
+                 <>
+                   <NavLink to="/admin" className="block py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-lg" onClick={handleLinkClick}>
+                      Administración
+                   </NavLink>
+                   <NavLink to="/groups" className="block py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-lg" onClick={handleLinkClick}>
+                      Grupos
+                   </NavLink>
+                 </>
               )}
            </nav>
         </div>
