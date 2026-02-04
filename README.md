@@ -1,19 +1,19 @@
 # 🚀 Estructura Web Base (BaLog)
 
-**BaLog** es una plantilla Full Stack ligera, segura y modular diseñada para iniciar proyectos web rápidamente.
+**BaLog** es una plantilla Full Stack (MERN-ish) diseñada para iniciar proyectos web rápidamente con una arquitectura sólida y segura.
 
 ## 🛠️ Stack Tecnológico
 - **Frontend:** React 18 + Vite + Tailwind CSS v4
 - **Backend:** Node.js + Express
-- **DB:** SQLite (`sql.js` / archivo local)
+- **DB:** SQLite (Archivo local / Portátil)
 - **Seguridad:** JWT, Bcrypt, Rate Limiting, Validaciones Nativas
 
 ## 🔐 Características Clave
 - **Roles Jerárquicos:** `Usr` (Usuario), `Adm` (Admin), `Sa` (SuperAdmin).
-- **Lógica Génesis:** El primer usuario registrado se convierte automáticamente en SuperAdmin.
-- **Seguridad Activa:** Protección contra fuerza bruta y sanitización de errores.
-- **Validación Cero-Dependencias:** Módulo nativo extensible para validar datos.
-- **UI Unificada:** Navbar responsiva, modo oscuro y sistema de badges por rol.
+- **Lógica Génesis:** El primer registro se convierte en SuperAdmin.
+- **Autodestrucción:** Capacidad de reinicio de fábrica (Reset Total) para el SuperAdmin.
+- **UI Profesional:** Tabla de datos avanzada (Sticky columns, Flexbox), modo oscuro y diseño responsive unificado.
+- **Validación:** Módulo nativo extensible sin dependencias extra.
 
 ## ⚡ Inicio Rápido
 
@@ -35,10 +35,10 @@
 ```text
 ├── server/             # API, Validaciones y DB
 ├── src/
-│   ├── components/     # UI (Navbar, Cards)
+│   ├── components/     # UI (Navbar, TableDiv, Cards)
 │   ├── context/        # Auth & Theme
 │   ├── layouts/        # Base & Private
-│   ├── pages/          # Vistas
+│   ├── pages/          # Vistas (Dashboard, AdminPanel)
 │   └── utils/          # Helpers
 └── .env                # Secretos
 ```

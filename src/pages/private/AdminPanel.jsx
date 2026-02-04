@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
+import TableDiv from '../../components/ui/TableDiv';
 
 const AdminPanel = () => {
   const { user, token } = useAuth();
@@ -120,8 +121,6 @@ const AdminPanel = () => {
     }
   };
 
-  if (loading) return <div className="text-center p-8 dark:text-gray-400">Cargando administración...</div>;
-
   if (error) return (
     <div className="text-center p-8">
       <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg inline-block">
@@ -133,6 +132,90 @@ const AdminPanel = () => {
   );
 
   const isSuperAdmin = user.roles && user.roles.includes('Sa');
+
+  // CONFIGURACIÓN DE COLUMNAS DE LA TABLA
+  const columns = [
+    {
+      key: 'username',
+      label: 'Usuario',
+      className: 'w-40 font-bold text-gray-900 dark:text-white justify-center', 
+      headerClassName: 'w-40 justify-center', // text-center -> justify-center (flex)
+      render: (u) => (
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white ${u.isAdmin ? 'bg-purple-600' : 'bg-gray-400'}`}>
+            {u.username.charAt(0).toUpperCase()}
+          </div>
+          <p className="font-bold truncate">{u.username}</p>
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      label: 'Estado',
+      className: 'w-40 justify-center',
+      headerClassName: 'w-40 justify-center', // text-center -> justify-center (flex)
+      render: (u) => (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+          u.is_active 
+            ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30' 
+            : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30'
+        }`}>
+          {u.is_active ? 'Activo' : 'Inactivo'}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Controles',
+      sticky: 'right',
+      className: 'w-72 justify-center', 
+      headerClassName: 'w-72 justify-center', // text-center -> justify-center (flex)
+      render: (u) => (
+        <div className="flex items-center justify-center gap-4 w-full">
+          {/* Toggle Admin */}
+          <div className="flex items-center gap-2" title="Conceder permisos de Administrador">
+            <span className="text-[10px] uppercase font-bold text-gray-400">Admin</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={u.isAdmin}
+                onChange={() => toggleRole(u.id, u.isAdmin)}
+                disabled={u.id === user.id}
+              />
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-violet-300 dark:peer-focus:ring-violet-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-600"></div>
+            </label>
+          </div>
+
+          {/* Botones de Acción */}
+          <div className="flex gap-2 border-l border-gray-200 dark:border-gray-700 pl-4">
+            <Button 
+              size="sm" 
+              variant={u.is_active ? "danger" : "secondary"}
+              onClick={() => toggleStatus(u.id, u.is_active)}
+              disabled={u.id === user.id}
+              className={`text-xs px-3 py-1 ${u.is_active ? "" : "bg-green-600 hover:bg-green-700 text-white dark:bg-green-600"}`}
+            >
+              {u.is_active ? 'Ban' : 'Unban'}
+            </Button>
+            
+            {isSuperAdmin && (
+              <Button
+                size="sm"
+                variant="danger"
+                className="bg-red-800 hover:bg-red-900 text-white px-3 py-1"
+                onClick={() => deleteUser(u.id)}
+                disabled={u.id === user.id}
+                title="Eliminar permanentemente"
+              >
+                🗑️
+              </Button>
+            )}
+          </div>
+        </div>
+      )
+    }
+  ];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -146,81 +229,12 @@ const AdminPanel = () => {
         </div>
       </div>
 
-      <Card className="overflow-hidden border-0 shadow-lg dark:bg-gray-900">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                <th className="p-4 font-semibold text-gray-600 dark:text-gray-300 text-sm uppercase">Usuario</th>
-                <th className="p-4 font-semibold text-gray-600 dark:text-gray-300 text-sm uppercase">Estado</th>
-                <th className="p-4 font-semibold text-gray-600 dark:text-gray-300 text-sm uppercase text-center">Admin</th>
-                <th className="p-4 font-semibold text-gray-600 dark:text-gray-300 text-sm uppercase text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${u.isAdmin ? 'bg-purple-600' : 'bg-gray-400'}`}>
-                        {u.username.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-900 dark:text-gray-100">{u.username}</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">ID: #{u.id}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                       u.is_active 
-                         ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30' 
-                         : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30'
-                     }`}>
-                       {u.is_active ? 'Activo' : 'Desactivado'}
-                     </span>
-                  </td>
-                  <td className="p-4 text-center">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
-                        checked={u.isAdmin}
-                        onChange={() => toggleRole(u.id, u.isAdmin)}
-                        disabled={u.id === user.id} // No quitarse admin a uno mismo accidentalmente
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 dark:peer-focus:ring-violet-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-violet-600"></div>
-                    </label>
-                  </td>
-                  <td className="p-4 text-right flex items-center justify-end gap-2">
-                    <Button 
-                      size="sm" 
-                      variant={u.is_active ? "danger" : "secondary"}
-                      onClick={() => toggleStatus(u.id, u.is_active)}
-                      disabled={u.id === user.id}
-                      className={u.is_active ? "" : "bg-green-600 hover:bg-green-700 text-white dark:bg-green-600"}
-                    >
-                      {u.is_active ? 'Desactivar' : 'Activar'}
-                    </Button>
-                    {isSuperAdmin && (
-                      <Button
-                        size="sm"
-                        variant="danger" // Usamos danger, pero quizás un rojo más oscuro sería mejor o un icono de basura
-                        className="bg-red-800 hover:bg-red-900 text-white"
-                        onClick={() => deleteUser(u.id)}
-                        disabled={u.id === user.id}
-                        title="Eliminar permanentemente"
-                      >
-                        🗑️
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <TableDiv 
+        columns={columns}
+        data={users}
+        loading={loading}
+        emptyMessage="No se encontraron usuarios."
+      />
     </div>
   );
 };

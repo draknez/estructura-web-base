@@ -159,7 +159,19 @@ const verifySuperAdmin = (req, res, next) => {
 
 app.get('/api/users/status', (req, res) => {
   try {
-    const stmt = db.prepare("SELECT id, username FROM users WHERE is_active = 1");
+    // Seleccionar usuarios activos QUE NO sean SuperAdmin (Sa)
+    const query = `
+      SELECT id, username 
+      FROM users 
+      WHERE is_active = 1 
+      AND id NOT IN (
+        SELECT ur.user_id 
+        FROM user_roles ur 
+        JOIN roles r ON ur.role_id = r.id 
+        WHERE r.name = 'Sa'
+      )
+    `;
+    const stmt = db.prepare(query);
     const users = [];
     while(stmt.step()) {
       const row = stmt.getAsObject();
@@ -282,14 +294,36 @@ app.delete('/api/admin/user/:id', verifyToken, verifySuperAdmin, (req, res) => {
     
     saveDB();
     
-    // Forzar logout si estaba online
-    // Nota: Como ya borramos el usuario, no podemos buscar su nombre por ID fácilmente si no lo hicimos antes.
-    // Pero para simplificar, no actualizaremos onlineUsers aquí, ya que el token expirará eventualmente
-    // y el usuario no podrá hacer nada porque su ID ya no existe en la BD.
-    
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// SUPERADMIN: RESET TOTAL DEL SISTEMA (Génesis)
+app.post('/api/admin/system-reset', verifyToken, verifySuperAdmin, (req, res) => {
+  try {
+    console.warn(`⚠️ SYSTEM RESET INICIADO POR USUARIO ID ${req.userId}`);
+
+    // 1. Vaciar tablas de usuarios y relaciones
+    db.run("DELETE FROM user_roles"); // Borra asignaciones
+    db.run("DELETE FROM users");      // Borra usuarios
+    
+    // 2. Reiniciar contadores de ID (opcional, para que el próximo sea ID 1)
+    try {
+      db.run("DELETE FROM sqlite_sequence WHERE name='users'");
+    } catch(e) { /* Ignorar si no existe */ }
+
+    // 3. Limpiar memoria
+    onlineUsers.clear();
+    
+    saveDB();
+
+    console.log("♻️ SISTEMA REINICIADO A MODO FÁBRICA");
+    res.json({ success: true, message: "Sistema reiniciado correctamente." });
+  } catch (err) {
+    console.error("Error en System Reset:", err);
+    res.status(500).json({ error: "Fallo crítico al reiniciar el sistema." });
   }
 });
 

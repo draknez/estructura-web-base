@@ -1,23 +1,67 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
+  const navigate = useNavigate();
+  const [showDanger, setShowDanger] = useState(false);
 
   // Verificar roles de forma segura
   const roles = user.roles || [];
   const isAdmin = roles.includes('adm');
+  const isSuperAdmin = roles.includes('Sa');
+
+  // Determinar Estilo Principal (Prioridad: Sa > Adm > Usr)
+  let headerGradient = "from-sky-500 to-cyan-500";
+  let avatarBg = "bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400";
+  
+  if (isSuperAdmin) {
+    headerGradient = "from-yellow-400 to-amber-600";
+    avatarBg = "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400";
+  } else if (isAdmin) {
+    headerGradient = "from-orange-500 to-red-500";
+    avatarBg = "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400";
+  }
+
+  // Manejar Reset Total (Solo SuperAdmin)
+  const handleSystemReset = async () => {
+    const confirm1 = confirm("⛔ ¡PELIGRO CRÍTICO! ⛔\n\n¿Estás a punto de ELIMINAR TODOS LOS USUARIOS del sistema (incluido tú mismo)?\n\nEsta acción no se puede deshacer. El sistema volverá a estar vacío.");
+    if (!confirm1) return;
+
+    const confirm2 = confirm("¿Estás realmente seguro? \n\nEscribe 'SI' en tu mente y pulsa Aceptar para confirmar la DESTRUCCIÓN TOTAL de los datos.");
+    if (!confirm2) return;
+
+    try {
+      const API_URL = `http://${window.location.hostname}:3000`;
+      const res = await fetch(`${API_URL}/api/admin/system-reset`, {
+        method: 'POST',
+        headers: { 'x-access-token': token }
+      });
+
+      if (res.ok) {
+        alert("♻️ El sistema ha sido reiniciado. Serás redirigido al inicio.");
+        logout(); // Limpiar estado local
+        navigate('/'); // Redirigir a home
+      } else {
+        const err = await res.json();
+        alert("Error: " + err.error);
+      }
+    } catch (error) {
+      alert("Error de conexión crítico.");
+    }
+  };
 
   return (
     <div className="flex justify-center items-center min-h-[60vh]">
       <Card className="w-full max-w-md shadow-2xl border-none ring-1 ring-black/5 dark:ring-white/10">
         {/* Cabecera con Avatar */}
-        <div className={`relative h-28 rounded-t-xl bg-gradient-to-r ${isAdmin ? 'from-purple-600 to-pink-600' : 'from-blue-500 to-cyan-500'}`}>
+        <div className={`relative h-28 rounded-t-xl bg-gradient-to-r ${headerGradient}`}>
           <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
             <div className="w-24 h-24 bg-white dark:bg-gray-900 rounded-full p-1.5 shadow-xl">
-              <div className={`w-full h-full rounded-full flex items-center justify-center text-4xl font-bold ${isAdmin ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
+              <div className={`w-full h-full rounded-full flex items-center justify-center text-4xl font-bold ${avatarBg}`}>
                 {user.username.charAt(0).toUpperCase()}
               </div>
             </div>
@@ -83,6 +127,33 @@ const Dashboard = () => {
              <Button variant="danger" onClick={logout} className="w-full py-2.5 shadow-red-100 dark:shadow-none rounded-xl">
                Cerrar Sesión
              </Button>
+
+             {/* SUPERADMIN: Danger Zone Toggle */}
+             {isSuperAdmin && (
+                <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
+                   <button 
+                     onClick={() => setShowDanger(!showDanger)}
+                     className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors"
+                   >
+                     {showDanger ? 'Ocultar' : 'Mostrar'} Opciones de Sistema
+                   </button>
+
+                   {showDanger && (
+                     <div className="mt-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-xs text-red-600 dark:text-red-400 mb-3 font-medium">
+                          ⚠️ Advertencia: El siguiente botón eliminará TODA la base de datos de usuarios.
+                        </p>
+                        <Button 
+                          variant="danger" 
+                          onClick={handleSystemReset} 
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-500/20"
+                        >
+                          ☢️ REINICIAR FÁBRICA
+                        </Button>
+                     </div>
+                   )}
+                </div>
+             )}
           </div>
         </div>
       </Card>
