@@ -13,7 +13,7 @@ const RegisterPage = () => {
   const navigate = useNavigate();
 
   // Redirigir si ya está logueado
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/profile" replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +23,7 @@ const RegisterPage = () => {
 
     const result = await register(username, password);
     if (result.success) {
-      navigate('/dashboard');
+      navigate('/profile');
     } else {
       setError(result.error);
     }
@@ -31,7 +31,7 @@ const RegisterPage = () => {
 
   return (
     <div className="flex justify-center items-center min-h-[60vh]">
-      <Card className="w-full max-w-md border-violet-100 dark:border-violet-900 shadow-violet-50 dark:shadow-none">
+      <Card className="w-full max-w-md border-teal-100 dark:border-teal-900 shadow-teal-50 dark:shadow-none">
         <CardHeader 
           title="Crear Cuenta" 
           description="Únete a nosotros en segundos." 
@@ -65,7 +65,7 @@ const RegisterPage = () => {
         </Form>
 
         <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-800 pt-4">
-          ¿Ya tienes cuenta? <Link to="/login" className="text-violet-600 dark:text-violet-400 font-medium hover:underline">Inicia sesión</Link>
+          ¿Ya tienes cuenta? <Link to="/login" className="text-teal-600 dark:text-teal-400 font-medium hover:underline">Inicia sesión</Link>
         </p>
       </Card>
     </div>

@@ -7,6 +7,9 @@ echo "🎨 Frontend: http://localhost:5173"
 echo "❌ Presiona CTRL + C para detener todo."
 echo ""
 
+# Aumentamos el límite de memoria a 4GB para evitar cierres (Heap Out of Memory)
+export NODE_OPTIONS="--max-old-space-size=4096"
+
 # Usamos node --watch (Disponible en Node 18.11+)
 /data/data/com.termux/files/usr/bin/pnpm exec concurrently \
   "node --watch server/index.js" \

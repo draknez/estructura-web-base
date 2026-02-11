@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { Card, CardHeader, Form } from '../../components/ui/Card';
@@ -8,40 +9,41 @@ import { Card, CardHeader, Form } from '../../components/ui/Card';
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { user, login } = useAuth();
+  const { addToast } = useToast();
   const navigate = useNavigate();
 
-  // Redirigir si ya está logueado
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/profile" replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    
-    if (!username) return setError("El usuario es obligatorio");
-    if (!password) return setError("La contraseña es obligatoria");
+    if (!username || !password) return addToast("Completa todos los campos", "error");
 
+    setLoading(true);
     const result = await login(username, password);
+    setLoading(false);
+
     if (result.success) {
-      navigate('/dashboard');
+      addToast(`Bienvenido, ${username}`, "success");
+      navigate('/profile');
     } else {
-      setError(result.error);
+      addToast(result.error, "error");
     }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-[60vh]">
-      <Card className="w-full max-w-md">
+    <div className="flex justify-center items-center min-h-[80vh] px-4">
+      <Card className="w-full max-w-sm">
         <CardHeader 
-          title="Bienvenido de nuevo" 
-          description="Ingresa tus credenciales para acceder al panel." 
+          title="BaLog" 
+          description="Inicia sesión en tu cuenta" 
         />
         
         <Form onSubmit={handleSubmit}>
           <Input 
             label="Usuario" 
-            placeholder="Ej: admin"
+            placeholder="Introduce tu usuario"
             value={username} 
             onChange={(e) => setUsername(e.target.value)} 
           />
@@ -53,21 +55,15 @@ const LoginPage = () => {
             onChange={(e) => setPassword(e.target.value)} 
           />
           
-          {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm rounded-md flex items-center gap-2">
-              ⚠️ {error}
-            </div>
-          )}
-
-          <Button type="submit" size="lg" className="w-full mt-2">
-            Iniciar Sesión
+          <Button type="submit" size="lg" className="w-full mt-4" disabled={loading}>
+            {loading ? "Accediendo..." : "Entrar"}
           </Button>
         </Form>
         
-        <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-800 pt-4">
-          ¿No tienes una cuenta?{' '}
-          <Link to="/register" className="text-violet-600 dark:text-violet-400 font-medium hover:underline">
-            Regístrate aquí
+        <div className="px-8 pb-8 text-center text-[10px] font-black uppercase tracking-widest text-gray-400">
+          ¿No tienes cuenta?{' '}
+          <Link to="/register" className="text-teal-600 hover:underline">
+            Regístrate
           </Link>
         </div>
       </Card>

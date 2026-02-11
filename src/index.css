@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
-/* 
-  En Tailwind CSS v4, el modo oscuro usa 'media' por defecto.
-  Sobrescribimos la variante 'dark' para que funcione con la clase '.dark' (strategy: 'class').
-*/
+/* Fuente Inter (Simulada localmente para este entorno) */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/Inter-VariableFont_slnt,wght.ttf') format('truetype');
+}
+
 @variant dark (&:where(.dark, .dark *));
 
-/* 
-  Configuramos el esquema de color del navegador para que coincida
-  (afecta scrollbars, inputs nativos, etc.)
-*/
 @layer base {
   :root {
     color-scheme: light;
+    /* Base Teal Theme */
+    --color-primary-50: #f0fdfa;
+    --color-primary-100: #ccfbf1;
+    --color-primary-500: #14b8a6;
+    --color-primary-600: #0d9488;
+    --color-primary-700: #0f766e;
+    --color-primary-900: #134e4a;
   }
   :root.dark {
     color-scheme: dark;
   }
+  
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  }
 }
 
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+/* Scrollbar personalizada Teal */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-teal-200 dark:bg-teal-900 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-teal-300 dark:bg-teal-800;
 }

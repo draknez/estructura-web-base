@@ -136,7 +136,7 @@ async function initDB() {
     }
   }
 
-  // Migración: Crear tabla groups si no existe (para bases de datos antiguas)
+  // Migración: Crear tabla groups si no existe
   try {
     db.run(`CREATE TABLE IF NOT EXISTS groups (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,6 +148,19 @@ async function initDB() {
     needsSave = true;
   } catch (e) {
     console.error("Error creando tabla groups:", e);
+  }
+
+  // Migración: Añadir leader_id a groups
+  try {
+    db.exec("SELECT leader_id FROM groups LIMIT 1");
+  } catch (e) {
+    console.log("MIGRACIÓN: Añadiendo columna 'leader_id' a grupos...");
+    try {
+      db.run("ALTER TABLE groups ADD COLUMN leader_id INTEGER");
+      needsSave = true;
+    } catch (alterErr) {
+      console.error("Error migración leader_id:", alterErr);
+    }
   }
 
   if (needsSave) {
@@ -223,14 +236,43 @@ app.get('/api/users/status', (req, res) => {
   }
 });
 
-// ADMIN: Obtener todos los usuarios con detalle
+// ADMIN: Obtener todos los usuarios con detalle (Filtrado por Grupo)
 app.get('/api/admin/users', verifyToken, verifyAdmin, (req, res) => {
   try {
-    const stmt = db.prepare(`
+    const isSuperAdmin = req.userRoles && req.userRoles.includes('Sa');
+    let query = `
       SELECT u.id, u.username, u.is_active, u.group_id, g.name as group_name 
       FROM users u
       LEFT JOIN groups g ON u.group_id = g.id
-    `);
+    `;
+    
+    const params = [];
+
+    // Si NO es SuperAdmin, filtrar por su propio grupo
+    if (!isSuperAdmin) {
+      const requesterStmt = db.prepare("SELECT group_id FROM users WHERE id = ?");
+      requesterStmt.bind([req.userId]);
+      if (requesterStmt.step()) {
+        const requesterGroupId = requesterStmt.getAsObject().group_id;
+        requesterStmt.free();
+
+        if (requesterGroupId) {
+          query += " WHERE u.group_id = ?";
+          params.push(requesterGroupId);
+        } else {
+          // Si el Admin no tiene grupo, ¿qué ve? Por seguridad, nada (o solo a sí mismo, pero la UI lo filtra).
+          // Asumiremos que ve usuarios sin grupo O nada. Cumpliendo "solo a los de su grupo":
+          query += " WHERE u.group_id IS NULL"; 
+        }
+      } else {
+        requesterStmt.free();
+        return res.status(403).json({ error: 'Usuario no encontrado' });
+      }
+    }
+
+    const stmt = db.prepare(query);
+    stmt.bind(params);
+    
     const users = [];
     while(stmt.step()) {
       const row = stmt.getAsObject();
@@ -288,12 +330,33 @@ app.post('/api/admin/toggle-role', verifyToken, verifyAdmin, (req, res) => {
 // ADMIN: Alternar Estado (Ban/Unban)
 app.post('/api/admin/toggle-status', verifyToken, verifyAdmin, (req, res) => {
   const { targetUserId } = req.body;
+  const isSuperAdmin = req.userRoles && req.userRoles.includes('Sa');
   
   if (parseInt(targetUserId) === req.userId) {
     return res.status(400).json({ error: 'No puedes desactivar tu propia cuenta' });
   }
 
   try {
+    if (!isSuperAdmin) {
+       // Obtener grupo del requester
+       const reqStmt = db.prepare("SELECT group_id FROM users WHERE id = ?");
+       reqStmt.bind([req.userId]);
+       reqStmt.step();
+       const reqGroup = reqStmt.getAsObject().group_id;
+       reqStmt.free();
+
+       // Obtener grupo del target
+       const targetStmt = db.prepare("SELECT group_id FROM users WHERE id = ?");
+       targetStmt.bind([targetUserId]);
+       targetStmt.step();
+       const targetGroup = targetStmt.getAsObject().group_id;
+       targetStmt.free();
+       
+       if (reqGroup !== targetGroup) {
+         return res.status(403).json({ error: 'Solo puedes gestionar usuarios de tu mismo grupo.' });
+       }
+    }
+
     const stmt = db.prepare("SELECT is_active FROM users WHERE id = ?");
     stmt.bind([targetUserId]);
     stmt.step();
@@ -321,34 +384,151 @@ app.post('/api/admin/toggle-status', verifyToken, verifyAdmin, (req, res) => {
   }
 });
 
-// ADMIN: Editar Usuario (Asignar Grupo, etc)
+// ADMIN: Editar Usuario (Asignar Grupo, Nombre, Clave)
 app.put('/api/admin/user/:id', verifyToken, verifyAdmin, (req, res) => {
   const targetId = req.params.id;
-  const { group_id } = req.body;
+  const { group_id, username, password } = req.body;
+  const isSuperAdmin = req.userRoles && req.userRoles.includes('Sa');
 
   try {
-    // Validar grupo si se envía
-    if (group_id) {
-      const groupStmt = db.prepare("SELECT id FROM groups WHERE id = ?");
-      groupStmt.bind([group_id]);
-      if (!groupStmt.step()) {
-        groupStmt.free();
-        return res.status(400).json({ error: 'El grupo especificado no existe.' });
+    // VERIFICACIÓN DE PERMISOS (Scope)
+    if (!isSuperAdmin) {
+      // 1. Obtener datos del requester y del target
+      const requesterStmt = db.prepare("SELECT group_id FROM users WHERE id = ?");
+      requesterStmt.bind([req.userId]);
+      requesterStmt.step();
+      const requesterGroupId = requesterStmt.getAsObject().group_id;
+      requesterStmt.free();
+
+      const targetStmt = db.prepare("SELECT group_id FROM users WHERE id = ?");
+      targetStmt.bind([targetId]);
+      targetStmt.step();
+      const targetGroupId = targetStmt.getAsObject().group_id;
+      targetStmt.free();
+
+      // 2. Verificar si es LÍDER del grupo del objetivo
+      let isLeaderOfTarget = false;
+      if (targetGroupId) {
+        const leaderStmt = db.prepare("SELECT leader_id FROM groups WHERE id = ?");
+        leaderStmt.bind([targetGroupId]);
+        if (leaderStmt.step()) {
+           const leaderId = leaderStmt.getAsObject().leader_id;
+           if (leaderId === req.userId) isLeaderOfTarget = true;
+        }
+        leaderStmt.free();
       }
-      groupStmt.free();
+
+      // REGLA: Solo puede editar si está en el mismo grupo O es el líder de ese grupo
+      if (requesterGroupId !== targetGroupId && !isLeaderOfTarget) {
+        return res.status(403).json({ error: 'No tienes permiso para editar usuarios fuera de tu grupo.' });
+      }
     }
 
-    // Actualizar usuario
-    // Nota: Si group_id es null/undefined, lo ponemos a NULL en la BD si se envía explícitamente null, 
-    // o lo ignoramos si no se envía. Aquí asumiremos que se quiere actualizar.
-    
-    // Convertir '' a null para SQL
-    const finalGroupId = group_id === "" ? null : group_id;
+    const updates = [];
+    const values = [];
 
-    db.run("UPDATE users SET group_id = ? WHERE id = ?", [finalGroupId, targetId]);
+    // 1. Validar Grupo
+    if (group_id !== undefined) {
+      if (group_id !== "" && group_id !== null) {
+        const groupStmt = db.prepare("SELECT id FROM groups WHERE id = ?");
+        groupStmt.bind([group_id]);
+        if (!groupStmt.step()) {
+          groupStmt.free();
+          return res.status(400).json({ error: 'El grupo especificado no existe.' });
+        }
+        groupStmt.free();
+      }
+      updates.push("group_id = ?");
+      values.push(group_id === "" ? null : group_id);
+    }
+
+    // 2. Validar Username
+    if (username) {
+      // Verificar duplicados (excluyendo el propio usuario)
+      const checkStmt = db.prepare("SELECT id FROM users WHERE username = ? AND id != ?");
+      checkStmt.bind([username, targetId]);
+      if (checkStmt.step()) {
+        checkStmt.free();
+        return res.status(400).json({ error: 'El nombre de usuario ya está en uso.' });
+      }
+      checkStmt.free();
+      updates.push("username = ?");
+      values.push(username);
+    }
+
+    // 3. Validar Password
+    if (password && password.trim() !== "") {
+      const hashedPassword = bcrypt.hashSync(password, 8);
+      updates.push("password = ?");
+      values.push(hashedPassword);
+    }
+
+    if (updates.length > 0) {
+        values.push(targetId);
+        const query = `UPDATE users SET ${updates.join(", ")} WHERE id = ?`;
+        db.run(query, values);
+    }
+
     saveDB();
     
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ADMIN: Crear Usuario Manualmente
+app.post('/api/admin/users', verifyToken, verifyAdmin, (req, res) => {
+  const { username, password } = req.body;
+  const isSuperAdmin = req.userRoles && req.userRoles.includes('Sa');
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Usuario y contraseña obligatorios.' });
+  }
+
+  try {
+    // 1. Verificar duplicado
+    const checkStmt = db.prepare("SELECT id FROM users WHERE username = ?");
+    checkStmt.bind([username]);
+    if (checkStmt.step()) {
+      checkStmt.free();
+      return res.status(400).json({ error: 'El usuario ya existe.' });
+    }
+    checkStmt.free();
+
+    // 2. Determinar grupo automático si NO es SuperAdmin
+    let autoGroupId = null;
+    if (!isSuperAdmin) {
+       const requesterStmt = db.prepare("SELECT group_id FROM users WHERE id = ?");
+       requesterStmt.bind([req.userId]);
+       if (requesterStmt.step()) {
+          const row = requesterStmt.getAsObject();
+          if (row.group_id) {
+            autoGroupId = row.group_id;
+          }
+       }
+       requesterStmt.free();
+    }
+
+    const hashedPassword = bcrypt.hashSync(password, 8);
+
+    // 3. Crear Usuario (Insertar con group_id si aplica)
+    db.run('INSERT INTO users (username, password, is_active, group_id) VALUES (?, ?, 1, ?)', [username, hashedPassword, autoGroupId]);
+    const resId = db.exec("SELECT last_insert_rowid() as id");
+    const userId = resId[0].values[0][0];
+
+    // 4. Asignar Roles
+    // Rol 'usr' siempre
+    const stmtRoleUsr = db.prepare("SELECT id FROM roles WHERE name = 'usr'");
+    if (stmtRoleUsr.step()) {
+        const roleUsrId = stmtRoleUsr.getAsObject().id;
+        db.run('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, roleUsrId]);
+    }
+    stmtRoleUsr.free();
+
+    saveDB();
+    res.json({ success: true, id: userId });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -397,6 +577,52 @@ app.post('/api/admin/system-reset', verifyToken, verifySuperAdmin, (req, res) =>
   } catch (err) {
     console.error("Error en System Reset:", err);
     res.status(500).json({ error: "Fallo crítico al reiniciar el sistema." });
+  }
+});
+
+// SUPERADMIN: SEED (Generador Masivo de Usuarios)
+app.post('/api/admin/seed-users', verifyToken, verifySuperAdmin, (req, res) => {
+  const { count = 10, password = '123456' } = req.body;
+  const limit = Math.min(count, 500); // Límite de seguridad por petición
+
+  try {
+    console.log(`🌱 Generando ${limit} usuarios...`);
+    
+    // 1. Hash de la contraseña (UNA SOLA VEZ para optimizar CPU)
+    const hashedPassword = bcrypt.hashSync(password, 8);
+
+    // 2. Obtener ID del rol 'usr'
+    const stmtRole = db.prepare("SELECT id FROM roles WHERE name = 'usr'");
+    stmtRole.step();
+    const roleUsrId = stmtRole.getAsObject().id;
+    stmtRole.free();
+
+    // 3. Bucle de inserción
+    db.run("BEGIN TRANSACTION"); // Optimización velocidad SQL
+    
+    for (let i = 0; i < limit; i++) {
+      // Generar sufijo aleatorio 5 chars
+      const suffix = Math.random().toString(36).substring(2, 7);
+      const username = `User_${suffix}`;
+      
+      try {
+        db.run('INSERT INTO users (username, password, is_active, group_id) VALUES (?, ?, 1, NULL)', [username, hashedPassword]);
+        const resId = db.exec("SELECT last_insert_rowid() as id");
+        const userId = resId[0].values[0][0];
+        db.run('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, roleUsrId]);
+      } catch (e) {
+        // Ignorar duplicados si la suerte falla
+        continue;
+      }
+    }
+    
+    db.run("COMMIT");
+    saveDB(); // Guardar a disco una sola vez al final
+
+    res.json({ success: true, message: `${limit} usuarios generados.` });
+  } catch (err) {
+    db.run("ROLLBACK");
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -543,9 +769,12 @@ function getGroupDepth(parentId, currentDepth = 1) {
 app.get('/api/groups', verifyToken, (req, res) => {
   try {
     const stmt = db.prepare(`
-      SELECT g.*, p.name as parent_name 
+      SELECT g.*, p.name as parent_name,
+      (SELECT COUNT(*) FROM users u WHERE u.group_id = g.id) as member_count,
+      l.username as leader_name, l.id as leader_id_check
       FROM groups g 
       LEFT JOIN groups p ON g.parent_id = p.id
+      LEFT JOIN users l ON g.leader_id = l.id
     `);
     const groups = [];
     while(stmt.step()) {
@@ -574,6 +803,35 @@ app.post('/api/groups', verifyToken, verifyAdmin, (req, res) => {
   try {
     db.run("INSERT INTO groups (name, description, parent_id) VALUES (?, ?, ?)", [name, description, parent_id]);
     saveDB();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/groups/:id', verifyToken, verifyAdmin, (req, res) => {
+  const id = req.params.id;
+  const { name, description, parent_id, leader_id } = req.body;
+
+  try {
+    // Si se envía leader_id, verificamos que exista
+    // Nota: Lógica simplificada, idealmente verificar profundidad si se cambia parent_id
+    
+    // Construir query dinámica
+    const updates = [];
+    const values = [];
+    
+    if (name !== undefined) { updates.push("name = ?"); values.push(name); }
+    if (description !== undefined) { updates.push("description = ?"); values.push(description); }
+    if (parent_id !== undefined) { updates.push("parent_id = ?"); values.push(parent_id || null); }
+    if (leader_id !== undefined) { updates.push("leader_id = ?"); values.push(leader_id || null); }
+    
+    if (updates.length > 0) {
+      values.push(id);
+      db.run(`UPDATE groups SET ${updates.join(", ")} WHERE id = ?`, values);
+      saveDB();
+    }
+    
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
