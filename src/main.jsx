@@ -9,7 +9,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
 
 // Layouts
-import BaseLayout from './layouts/BaseLayout';
+import BaseLayout from './layouts/PublicLayout';
 import PrivateLayout from './layouts/PrivateLayout';
 
 // Pages
