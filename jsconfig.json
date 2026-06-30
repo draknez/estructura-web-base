@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "jsx": "preserve",
+    "checkJs": false,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@/*": ["src/*"],
+      "@server/*": ["server/*"],
+      "@scripts/*": ["scripts/*"]
+    }
+  },
+  "include": ["src/**/*", "server/**/*", "scripts/**/*", "vite.config.js"],
+  "exclude": ["node_modules", "dist"]
+}
