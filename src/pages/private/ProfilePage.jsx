@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -6,16 +6,30 @@ import { useToast } from '../../context/ToastContext';
 import { Card } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
 import RoleBadge from '../../components/ui/RoleBadge';
+import TwoFactorSetup from '../../features/auth/components/TwoFactorSetup';
+import TwoFactorDisable from '../../features/auth/components/TwoFactorDisable';
 
 const ProfilePage = () => {
-  const { user, authFetch, API_URL, logout } = useAuth();
+  const { user, authFetch, API_URL, logout, get2FAStatus } = useAuth();
   const { addToast } = useToast();
   const { appStyle, toggleAppStyle } = useTheme();
   const navigate = useNavigate();
   const [showAdminTools, setShowAdminTools] = useState(false);
   const [seedCount, setSeedCount] = useState(10);
   const [seedPassword, setSeedPassword] = useState('');
+  const [twoFAEnabled, setTwoFAEnabled] = useState(null);
+  const [showSetup2FA, setShowSetup2FA] = useState(false);
+  const [showDisable2FA, setShowDisable2FA] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    get2FAStatus()
+      .then((s) => { if (!cancelled) setTwoFAEnabled(!!s.enabled); })
+      .catch(() => { if (!cancelled) setTwoFAEnabled(false); });
+    return () => { cancelled = true; };
+  }, [get2FAStatus]);
 
   // Verificar roles de forma segura
   const roles = user.roles || [];
@@ -131,6 +145,43 @@ const ProfilePage = () => {
 
         {/* Acciones */}
         <div className="w-full mt-4 space-y-4">
+             {/* Sección 2FA — disponible para cualquier usuario logueado */}
+             <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 w-full">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md ${
+                      twoFAEnabled ? 'bg-emerald-500 shadow-emerald-500/30' : 'bg-gray-300 dark:bg-gray-700'
+                    }`}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm0 2c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-200">
+                        Verificación 2FA
+                      </p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        {twoFAEnabled === null
+                          ? 'Cargando…'
+                          : twoFAEnabled
+                          ? 'Activada'
+                          : 'Desactivada'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {twoFAEnabled ? (
+                    <Button size="sm" variant="danger" onClick={() => setShowDisable2FA(true)}>
+                      Desactivar
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={() => setShowSetup2FA(true)} disabled={twoFAEnabled === null}>
+                      Activar
+                    </Button>
+                  )}
+                </div>
+             </div>
+
              {/* SUPERADMIN: Panel de Herramientas */}
              {isSuperAdmin && (
                 <div className="pt-6 mt-2 border-t border-gray-100 dark:border-gray-800 w-full">
@@ -200,6 +251,29 @@ const ProfilePage = () => {
              )}
         </div>
       </Card>
+
+      {/* Modales 2FA */}
+      <Modal
+        isOpen={showSetup2FA}
+        onClose={() => setShowSetup2FA(false)}
+        title="Activar verificación 2FA"
+      >
+        <TwoFactorSetup
+          onClose={() => setShowSetup2FA(false)}
+          onEnabled={() => setTwoFAEnabled(true)}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={showDisable2FA}
+        onClose={() => setShowDisable2FA(false)}
+        title="Desactivar verificación 2FA"
+      >
+        <TwoFactorDisable
+          onClose={() => setShowDisable2FA(false)}
+          onDisabled={() => setTwoFAEnabled(false)}
+        />
+      </Modal>
     </div>
   );
 };

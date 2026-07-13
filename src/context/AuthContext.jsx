@@ -16,7 +16,6 @@ async function authFetch(url, options = {}) {
     },
   });
 
-  // Cualquier 401 = sesión inválida/revocada/expirada. Forzar logout.
   if (res.status === 401) {
     const onLogout = AuthContext._on401;
     if (typeof onLogout === 'function') onLogout();
@@ -24,6 +23,17 @@ async function authFetch(url, options = {}) {
   }
 
   return res;
+}
+
+async function postJSON(path, body) {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: body == null ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
 }
 
 export const AuthProvider = ({ children }) => {
@@ -62,14 +72,23 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const res = await fetch(`${API_URL}/api/login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
+      const { ok, data } = await postJSON('/api/login', { username, password });
+      if (!ok) throw new Error(data.error || 'Error al iniciar sesión');
+
+      if (data.requires_2fa) {
+        return { success: true, requires_2fa: true, temp_token: data.temp_token };
+      }
+      setUser(data.user);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const verify2FA = async (temp_token, code) => {
+    try {
+      const { ok, data } = await postJSON('/api/auth/2fa/verify', { temp_token, code });
+      if (!ok) throw new Error(data.error || 'Código inválido');
       setUser(data.user);
       return { success: true };
     } catch (error) {
@@ -79,14 +98,8 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (username, password) => {
     try {
-      const res = await fetch(`${API_URL}/api/register`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al registrar');
+      const { ok, data } = await postJSON('/api/register', { username, password });
+      if (!ok) throw new Error(data.error || 'Error al registrar');
       setUser(data.user);
       return { success: true };
     } catch (error) {
@@ -103,8 +116,54 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const get2FAStatus = async () => {
+    const { ok, data } = await authFetch(`${API_URL}/api/auth/2fa/status`);
+    if (!ok) throw new Error(data?.error || 'No se pudo obtener el estado 2FA');
+    return data;
+  };
+
+  const setup2FA = async () => {
+    const res = await authFetch(`${API_URL}/api/auth/2fa/setup`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo iniciar el setup 2FA');
+    return data;
+  };
+
+  const enable2FA = async (code) => {
+    const res = await authFetch(`${API_URL}/api/auth/2fa/enable`, {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo activar 2FA');
+    return data;
+  };
+
+  const disable2FA = async (password, code) => {
+    const res = await authFetch(`${API_URL}/api/auth/2fa/disable`, {
+      method: 'POST',
+      body: JSON.stringify({ password, code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo desactivar 2FA');
+    return data;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, API_URL, authFetch }}>
+    <AuthContext.Provider value={{
+      user,
+      login,
+      verify2FA,
+      register,
+      logout,
+      loading,
+      API_URL,
+      authFetch,
+      get2FAStatus,
+      setup2FA,
+      enable2FA,
+      disable2FA,
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );
