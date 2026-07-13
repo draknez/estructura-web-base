@@ -32,7 +32,10 @@ function redact(obj) {
 
 export function audit(actorId, action, target, meta = {}) {
   try {
-    if (!global.__balog_db) return;
+    if (!global.__balog_db) {
+      if (process.env.AUDIT_DEBUG) console.error(`[audit] skip ${action}: db no inicializado`);
+      return;
+    }
     const stmt = global.__balog_db.prepare(
       `INSERT INTO audit_log (actor_id, action, target, meta, created_at)
        VALUES (?, ?, ?, ?, ?)`

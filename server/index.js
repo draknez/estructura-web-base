@@ -13,6 +13,14 @@ import rateLimit from 'express-rate-limit';
 import { ipKeyGenerator } from 'express-rate-limit';
 import { Validators } from './validators.js';
 import { audit, listAudit } from './audit.js';
+import { runMigrations } from './migrator.js';
+import {
+  generateSecret,
+  verifyTotp,
+  otpauthUrl,
+  generateBackupCodes,
+  hashBackupCode,
+} from './totp.js';
 
 dotenv.config();
 
@@ -29,7 +37,9 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
   .filter(Boolean);
 const ALLOW_PUBLIC_REGISTER = (process.env.ALLOW_PUBLIC_REGISTER || 'true') === 'true';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const DB_FILE = path.join(__dirname, 'database.sqlite');
+const DB_FILE = process.env.DB_PATH
+  ? path.resolve(process.env.DB_PATH)
+  : path.join(__dirname, 'database.sqlite');
 
 const COOKIE_NAME = 'balog_token';
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || undefined;
@@ -120,9 +130,11 @@ app.use(cookieParser());
 // ============================================
 // RATE LIMITERS
 // ============================================
+const TESTING = !!process.env.TEST_DISABLE_RATE_LIMIT;
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: TESTING ? 100000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas peticiones desde esta IP, por favor intente más tarde.' },
@@ -131,7 +143,7 @@ const apiLimiter = rateLimit({
 // Status público: presupuesto generoso porque HomePage hace polling cada 5s
 const statusLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: TESTING ? 100000 : 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas consultas de estado. Reduzca la frecuencia.' },
@@ -139,7 +151,7 @@ const statusLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: TESTING ? 100000 : 5,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -153,7 +165,7 @@ const authLimiter = rateLimit({
 
 const seedLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hora
-  max: 3,
+  max: TESTING ? 100000 : 3,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas ejecuciones del generador de usuarios. Espere 1 hora.' },
@@ -166,8 +178,10 @@ let db;
 const onlineUsers = new Set();
 
 async function initDB() {
+  if (process.env.AUDIT_DEBUG) console.log('[initDB] start');
   const SQL = await initSqlJs();
   let needsSave = false;
+  if (process.env.AUDIT_DEBUG) console.log('[initDB] SQL.js loaded');
 
   // Pre-asignar handles para que audit.js pueda insertar durante la migración.
   global.__balog_db = db;
@@ -182,115 +196,14 @@ async function initDB() {
     db = new SQL.Database();
     db.run('PRAGMA foreign_keys = ON;');
     console.log('⚠️ Nueva base de datos creada');
-
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      token_version INTEGER NOT NULL DEFAULT 1,
-      is_active INTEGER NOT NULL DEFAULT 1
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS user_roles (
-      user_id INTEGER NOT NULL,
-      role_id INTEGER NOT NULL,
-      PRIMARY KEY (user_id, role_id),
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(role_id) REFERENCES roles(id) ON DELETE CASCADE
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS groups (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      description TEXT,
-      parent_id INTEGER,
-      leader_id INTEGER,
-      FOREIGN KEY(parent_id) REFERENCES groups(id) ON DELETE SET NULL
-    )`);
-
-    try {
-      db.run("INSERT INTO roles (name) VALUES ('usr')");
-      db.run("INSERT INTO roles (name) VALUES ('adm')");
-      db.run("INSERT INTO roles (name) VALUES ('Sa')");
-    } catch (e) {
-      /* ya existen */
-    }
     needsSave = true;
   }
 
-  // --- MIGRACIONES idempotentes ---
-
-  // token_version
-  try {
-    db.exec('SELECT token_version FROM users LIMIT 1');
-  } catch (e) {
-    console.log("MIGRACIÓN: Añadiendo columna 'token_version'...");
-    try {
-      db.run('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1');
-      needsSave = true;
-    } catch (err) {
-      console.error('Error migración token_version:', err);
-    }
-  }
-
-  // is_active
-  try {
-    db.exec('SELECT is_active FROM users LIMIT 1');
-  } catch (e) {
-    console.log("MIGRACIÓN: Añadiendo columna 'is_active'...");
-    try {
-      db.run('ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1');
-      needsSave = true;
-    } catch (alterErr) {
-      console.error('Error migración is_active:', alterErr);
-    }
-  }
-
-  // group_id
-  try {
-    db.exec('SELECT group_id FROM users LIMIT 1');
-  } catch (e) {
-    console.log("MIGRACIÓN: Añadiendo columna 'group_id'...");
-    try {
-      db.run('ALTER TABLE users ADD COLUMN group_id INTEGER');
-      needsSave = true;
-    } catch (alterErr) {
-      console.error('Error migración group_id:', alterErr);
-    }
-  }
-
-  // groups leader_id
-  try {
-    db.exec('SELECT leader_id FROM groups LIMIT 1');
-  } catch (e) {
-    console.log("MIGRACIÓN: Añadiendo columna 'leader_id' a grupos...");
-    try {
-      db.run('ALTER TABLE groups ADD COLUMN leader_id INTEGER');
-      needsSave = true;
-    } catch (alterErr) {
-      console.error('Error migración leader_id:', alterErr);
-    }
-  }
-
-  // audit_log
-  db.run(`CREATE TABLE IF NOT EXISTS audit_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    actor_id INTEGER,
-    action TEXT NOT NULL,
-    target TEXT,
-    meta TEXT,
-    created_at INTEGER NOT NULL
-  )`);
-  try {
-    db.exec('CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON audit_log (actor_id, created_at DESC)');
-    db.exec('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log (action)');
-  } catch (e) {
-    /* noop */
+  // Migraciones formales (idempotentes, tracked en _migrations)
+  const migResult = runMigrations(db, console);
+  if (migResult.applied > 0) {
+    console.log(`📦 Migraciones aplicadas: ${migResult.applied} (total: ${migResult.total})`);
+    needsSave = true;
   }
 
   if (needsSave) saveDB();
@@ -298,6 +211,7 @@ async function initDB() {
   // Re-asegurar handles tras inicialización completa (cubre el caso async).
   global.__balog_db = db;
   global.__balog_db_save = saveDB;
+  if (process.env.AUDIT_DEBUG) console.log(`[initDB] done. db=${!!db} global.__balog_db=${!!global.__balog_db}`);
 }
 
 function saveDB() {
@@ -568,7 +482,7 @@ app.post('/api/login', authLimiter, (req, res) => {
   const { username, password } = req.body;
   try {
     const stmt = db.prepare(
-      'SELECT id, username, password, is_active, token_version FROM users WHERE username = :username'
+      'SELECT id, username, password, is_active, token_version, totp_enabled FROM users WHERE username = :username'
     );
     const user = stmt.getAsObject({ ':username': username });
     stmt.free();
@@ -587,6 +501,19 @@ app.post('/api/login', authLimiter, (req, res) => {
     }
 
     const roles = getRolesForUser(user.id);
+
+    // 2FA: si está habilitada, emitir token temporal (5 min) que sólo sirve
+    // para canjear por sesión completa en /api/auth/2fa/verify.
+    if (user.totp_enabled === 1) {
+      const tempToken = jwt.sign(
+        { id: user.id, username: user.username, purpose: '2fa' },
+        SECRET_KEY,
+        { expiresIn: '5m' }
+      );
+      audit(user.id, 'user.login_2fa_required', user.id, { ip: req.ip });
+      return res.json({ requires_2fa: true, temp_token: tempToken });
+    }
+
     const token = jwt.sign(
       { id: user.id, username: user.username, roles, tv: user.token_version },
       SECRET_KEY,
@@ -594,6 +521,8 @@ app.post('/api/login', authLimiter, (req, res) => {
     );
     onlineUsers.add(user.username);
     setTokenCookie(res, token);
+
+    audit(user.id, 'user.login_success', user.id, { ip: req.ip });
 
     res.json({ user: { id: user.id, username: user.username, roles } });
   } catch (err) {
@@ -608,6 +537,246 @@ app.post('/api/logout', verifyToken, (req, res) => {
   onlineUsers.delete(req.username);
   clearTokenCookie(res);
   res.json({ success: true });
+});
+
+// ============================================
+// 2FA (TOTP) — solo SuperAdmin
+// ============================================
+
+// Middleware: verifica token con purpose='2fa'
+function verifyTemp2FAToken(req, res, next) {
+  const { temp_token } = req.body;
+  if (typeof temp_token !== 'string' || !temp_token) {
+    return res.status(400).json({ error: 'temp_token requerido.' });
+  }
+  jwt.verify(temp_token, SECRET_KEY, (err, decoded) => {
+    if (err || decoded.purpose !== '2fa' || !decoded.id) {
+      return res.status(401).json({ error: 'Token 2FA inválido o expirado.' });
+    }
+    req.userId = decoded.id;
+    req.username = decoded.username;
+    req.userRoles = []; // sin roles hasta verificar
+    next();
+  });
+}
+
+// GET status 2FA del usuario actual
+app.get('/api/auth/2fa/status', verifyToken, (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT totp_enabled FROM users WHERE id = ?');
+    stmt.bind([req.userId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+    const enabled = stmt.getAsObject().totp_enabled === 1;
+    stmt.free();
+    res.json({ enabled });
+  } catch (err) {
+    safeError(res, err);
+  }
+});
+
+// POST /api/auth/2fa/setup — genera secreto y otpauth URL (sin habilitar todavía)
+app.post('/api/auth/2fa/setup', apiLimiter, verifyToken, verifySuperAdmin, (req, res) => {
+  try {
+    const secret = generateSecret();
+    // Guardamos provisionalmente sin habilitar, hasta verificar con /enable.
+    db.run('UPDATE users SET totp_secret = ? WHERE id = ?', [secret, req.userId]);
+    saveDB();
+
+    const url = otpauthUrl({
+      issuer: 'BaLog',
+      account: req.username,
+      secret,
+    });
+
+    audit(req.userId, 'user.2fa_setup_initiated', req.userId, {});
+
+    res.json({
+      secret,
+      otpauth_url: url,
+      digits: 6,
+      period: 30,
+    });
+  } catch (err) {
+    safeError(res, err);
+  }
+});
+
+// POST /api/auth/2fa/enable — confirma código y activa 2FA + emite backup codes
+app.post('/api/auth/2fa/enable', apiLimiter, verifyToken, verifySuperAdmin, (req, res) => {
+  try {
+    const { code } = req.body;
+    if (typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: 'Código de 6 dígitos requerido.' });
+    }
+
+    const stmt = db.prepare('SELECT totp_secret, totp_enabled FROM users WHERE id = ?');
+    stmt.bind([req.userId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+    const row = stmt.getAsObject();
+    stmt.free();
+
+    if (!row.totp_secret) {
+      return res.status(400).json({ error: 'Primero ejecuta /api/auth/2fa/setup.' });
+    }
+    if (row.totp_enabled === 1) {
+      return res.status(409).json({ error: '2FA ya está habilitado.' });
+    }
+
+    if (!verifyTotp(row.totp_secret, code)) {
+      audit(req.userId, 'user.2fa_enable_failed', req.userId, { reason: 'bad_code' });
+      return res.status(401).json({ error: 'Código inválido.' });
+    }
+
+    // Habilitar y generar backup codes (mostrados una sola vez)
+    const backupCodes = generateBackupCodes(10);
+    db.run('UPDATE users SET totp_enabled = 1, totp_enabled_at = ? WHERE id = ?', [
+      Date.now(),
+      req.userId,
+    ]);
+    for (const code of backupCodes) {
+      db.run('INSERT INTO backup_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)', [
+        req.userId,
+        hashBackupCode(code),
+        Date.now(),
+      ]);
+    }
+    saveDB();
+
+    audit(req.userId, 'user.2fa_enabled', req.userId, { backup_codes_generated: backupCodes.length });
+
+    res.json({
+      success: true,
+      backup_codes: backupCodes, // ÚNICA VEZ que se muestran en claro
+      message: '2FA habilitado. Guarda los backup codes en un lugar seguro.',
+    });
+  } catch (err) {
+    safeError(res, err);
+  }
+});
+
+// POST /api/auth/2fa/verify — canjea temp_token + código TOTP por sesión completa
+app.post('/api/auth/2fa/verify', apiLimiter, verifyTemp2FAToken, (req, res) => {
+  try {
+    const { code } = req.body;
+    if (typeof code !== 'string') {
+      return res.status(400).json({ error: 'code requerido.' });
+    }
+
+    const stmt = db.prepare(
+      'SELECT id, username, is_active, token_version, totp_enabled, totp_secret FROM users WHERE id = ?'
+    );
+    stmt.bind([req.userId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return res.status(401).json({ error: 'Usuario no encontrado.' });
+    }
+    const user = stmt.getAsObject();
+    stmt.free();
+
+    if (user.is_active !== 1) {
+      return res.status(403).json({ error: 'Cuenta desactivada.' });
+    }
+    if (user.totp_enabled !== 1 || !user.totp_secret) {
+      return res.status(400).json({ error: '2FA no habilitado.' });
+    }
+
+    let verified = false;
+
+    // Aceptar código TOTP o backup code
+    if (/^\d{6}$/.test(code)) {
+      verified = verifyTotp(user.totp_secret, code);
+    } else if (/^[A-Z0-9]{5}-[A-Z0-9]{5}$/i.test(code)) {
+      const hashed = hashBackupCode(code);
+      const bcStmt = db.prepare(
+        'SELECT id FROM backup_codes WHERE user_id = ? AND code_hash = ? AND used_at IS NULL LIMIT 1'
+      );
+      bcStmt.bind([user.id, hashed]);
+      if (bcStmt.step()) {
+        const bcId = bcStmt.getAsObject().id;
+        bcStmt.free();
+        db.run('UPDATE backup_codes SET used_at = ? WHERE id = ?', [Date.now(), bcId]);
+        verified = true;
+      } else {
+        bcStmt.free();
+      }
+    }
+
+    if (!verified) {
+      audit(user.id, 'user.2fa_verify_failed', user.id, { ip: req.ip });
+      return res.status(401).json({ error: 'Código inválido.' });
+    }
+
+    const roles = getRolesForUser(user.id);
+    const token = jwt.sign(
+      { id: user.id, username: user.username, roles, tv: user.token_version },
+      SECRET_KEY,
+      { expiresIn: '24h' }
+    );
+    onlineUsers.add(user.username);
+    setTokenCookie(res, token);
+
+    audit(user.id, 'user.2fa_verified', user.id, {
+      method: /^\d{6}$/.test(code) ? 'totp' : 'backup_code',
+      ip: req.ip,
+    });
+
+    res.json({ user: { id: user.id, username: user.username, roles } });
+  } catch (err) {
+    safeError(res, err);
+  }
+});
+
+// POST /api/auth/2fa/disable — desactiva 2FA con confirmación de password + código
+app.post('/api/auth/2fa/disable', apiLimiter, verifyToken, verifySuperAdmin, (req, res) => {
+  try {
+    const { password, code } = req.body;
+
+    if (typeof password !== 'string' || typeof code !== 'string') {
+      return res.status(400).json({ error: 'password y code requeridos.' });
+    }
+
+    const stmt = db.prepare(
+      'SELECT password, totp_enabled, totp_secret FROM users WHERE id = ?'
+    );
+    stmt.bind([req.userId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+    const row = stmt.getAsObject();
+    stmt.free();
+
+    if (row.totp_enabled !== 1) {
+      return res.status(400).json({ error: '2FA no está habilitado.' });
+    }
+
+    if (!bcrypt.compareSync(password, row.password)) {
+      audit(req.userId, 'user.2fa_disable_failed', req.userId, { reason: 'bad_password' });
+      return res.status(403).json({ error: 'Contraseña incorrecta.' });
+    }
+    if (!verifyTotp(row.totp_secret, code)) {
+      audit(req.userId, 'user.2fa_disable_failed', req.userId, { reason: 'bad_code' });
+      return res.status(401).json({ error: 'Código 2FA inválido.' });
+    }
+
+    db.run('UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_enabled_at = NULL WHERE id = ?', [
+      req.userId,
+    ]);
+    db.run('DELETE FROM backup_codes WHERE user_id = ?', [req.userId]);
+    saveDB();
+
+    audit(req.userId, 'user.2fa_disabled', req.userId, {});
+
+    res.json({ success: true });
+  } catch (err) {
+    safeError(res, err);
+  }
 });
 
 // ME — devuelve el usuario autenticado (para refresh en frontend)
@@ -1340,13 +1509,7 @@ app.use((req, res) => {
 // ============================================
 // START + GRACEFUL SHUTDOWN
 // ============================================
-const server = app.listen(PORT, HOST, () => {
-  console.log(`📡 Server: http://${HOST}:${PORT}`);
-  console.log(`🔒 JWT_SECRET: ${SECRET_KEY.length >= 32 ? 'OK' : 'INSEGURO'} (${SECRET_KEY.length} chars)`);
-  console.log(`🔑 bcrypt rounds: ${BCRYPT_ROUNDS}`);
-  console.log(`🌐 CORS allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
-  console.log(`📝 Registro público: ${ALLOW_PUBLIC_REGISTER ? 'HABILITADO' : 'DESHABILITADO'}`);
-});
+let activeServer = null;
 
 let shuttingDown = false;
 function shutdown(signal) {
@@ -1354,8 +1517,12 @@ function shutdown(signal) {
   shuttingDown = true;
   console.log(`\n[shutdown] Señal ${signal} recibida. Cerrando gracefully...`);
 
+  if (!activeServer) {
+    process.exit(0);
+  }
+
   // 1. Dejar de aceptar conexiones nuevas
-  server.close((err) => {
+  activeServer.close((err) => {
     if (err) console.error('[shutdown] Error cerrando HTTP server:', err);
 
     // 2. Persistir BD
@@ -1393,3 +1560,30 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', reason);
 });
+
+// ============================================
+// EXPORTS + START GATE
+// ============================================
+export { app };
+
+// Sólo auto-arrancar cuando se ejecuta directamente: node server/index.js
+// (Permite importar `app` desde tests sin levantar el puerto.)
+import { pathToFileURL } from 'node:url';
+const isDirectRun =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+export function startServer() {
+  if (activeServer) return activeServer;
+  activeServer = app.listen(PORT, HOST, () => {
+    console.log(`📡 Server: http://${HOST}:${PORT}`);
+    console.log(`🔒 JWT_SECRET: ${SECRET_KEY.length >= 32 ? 'OK' : 'INSEGURO'} (${SECRET_KEY.length} chars)`);
+    console.log(`🔑 bcrypt rounds: ${BCRYPT_ROUNDS}`);
+    console.log(`🌐 CORS allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
+    console.log(`📝 Registro público: ${ALLOW_PUBLIC_REGISTER ? 'HABILITADO' : 'DESHABILITADO'}`);
+  });
+  return activeServer;
+}
+
+if (isDirectRun) {
+  startServer();
+}
