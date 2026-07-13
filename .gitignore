@@ -10,3 +10,6 @@ logs/
 # Cookie jars temporales de curl (smoke tests)
 .c-*.txt
 .test-*.txt
+
+# DBs temporales que crean los integration tests
+tests/.tmp/

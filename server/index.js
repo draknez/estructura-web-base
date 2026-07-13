@@ -199,6 +199,11 @@ async function initDB() {
     needsSave = true;
   }
 
+  // Publicar handles para módulos (audit.js) ANTES de correr migraciones
+  // por si alguna migración dispara un evento auditado.
+  global.__balog_db = db;
+  global.__balog_db_save = saveDB;
+
   // Migraciones formales (idempotentes, tracked en _migrations)
   const migResult = runMigrations(db, console);
   if (migResult.applied > 0) {
@@ -208,9 +213,6 @@ async function initDB() {
 
   if (needsSave) saveDB();
 
-  // Re-asegurar handles tras inicialización completa (cubre el caso async).
-  global.__balog_db = db;
-  global.__balog_db_save = saveDB;
   if (process.env.AUDIT_DEBUG) console.log(`[initDB] done. db=${!!db} global.__balog_db=${!!global.__balog_db}`);
 }
 
