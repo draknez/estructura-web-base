@@ -12,15 +12,15 @@ import ActionButton from '../../components/ui/ActionButton';
 import Dropdown from '../../components/ui/Dropdown';
 
 const UsersPage = () => {
-  const { user, token } = useAuth();
+  const { user, authFetch, API_URL } = useAuth();
   const { addToast } = useToast();
-  const { navbarPosition, appStyle } = useTheme(); 
-  
+  const { navbarPosition, appStyle } = useTheme();
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [filterStatus, setFilterStatus] = useState('all'); 
+  const [filterStatus, setFilterStatus] = useState('all');
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false });
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,6 +31,7 @@ const UsersPage = () => {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userFormData, setUserFormData] = useState({ username: '', password: '' });
+  const [formError, setFormError] = useState('');
 
   // Permiso SuperAdmin
   const isSuperAdmin = user?.roles?.includes('Sa');
@@ -38,10 +39,7 @@ const UsersPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const API_URL = `http://${window.location.hostname}:3000`;
-      const res = await fetch(`${API_URL}/api/admin/users`, {
-        headers: { 'x-access-token': token }
-      });
+      const res = await authFetch(`${API_URL}/api/admin/users`);
       if (!res.ok) throw new Error("Error al obtener usuarios");
       setUsers(await res.json());
     } catch (e) {
@@ -51,7 +49,7 @@ const UsersPage = () => {
     }
   };
 
-  useEffect(() => { if (token) fetchData(); }, [token]);
+  useEffect(() => { fetchData(); }, []);
 
   const requestSort = (key) => {
     let direction = 'asc';
@@ -100,17 +98,16 @@ const UsersPage = () => {
     setSelectedIds(newSelected);
   };
 
-  const toggleStatus = (targetId, currentStatus) => {
+  const toggleStatus = async (targetId, currentStatus) => {
     if (targetId === user.id) return addToast("No puedes desactivarte a ti mismo", 'error');
-    const API_URL = `http://${window.location.hostname}:3000`;
-    fetch(`${API_URL}/api/admin/toggle-status`, {
+    try {
+      const res = await authFetch(`${API_URL}/api/admin/toggle-status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-        body: JSON.stringify({ targetUserId: targetId })
-    }).then(res => {
-        if(res.ok) { addToast("Estado actualizado", 'success'); fetchData(); }
-        else addToast("Error al actualizar", 'error');
-    });
+        body: JSON.stringify({ targetUserId: targetId }),
+      });
+      if (res.ok) { addToast("Estado actualizado", 'success'); fetchData(); }
+      else { const err = await res.json().catch(() => ({})); addToast(err.error || "Error al actualizar", 'error'); }
+    } catch (e) { addToast(e.message, 'error'); }
   };
 
   const deleteUser = (targetId) => {
@@ -121,33 +118,48 @@ const UsersPage = () => {
       confirmText: "Eliminar",
       variant: "danger",
       onConfirm: async () => {
-        const API_URL = `http://${window.location.hostname}:3000`;
-        const res = await fetch(`${API_URL}/api/admin/user/${targetId}`, {
+        try {
+          const res = await authFetch(`${API_URL}/api/admin/user/${targetId}`, {
             method: 'DELETE',
-            headers: { 'x-access-token': token }
-        });
-        if(res.ok) { addToast("Usuario eliminado", 'success'); fetchData(); }
-        else addToast("Error al eliminar", 'error');
+          });
+          if (res.ok) { addToast("Usuario eliminado", 'success'); fetchData(); }
+          else { const err = await res.json().catch(() => ({})); addToast(err.error || "Error al eliminar", 'error'); }
+        } catch (e) { addToast(e.message, 'error'); }
       }
     });
   };
 
-  const openCreateModal = () => { setEditingUser(null); setUserFormData({ username: '', password: '' }); setIsUserModalOpen(true); };
-  const openEditModal = (u) => { setEditingUser(u); setUserFormData({ username: u.username, password: '' }); setIsUserModalOpen(true); };
+  const openCreateModal = () => { setEditingUser(null); setUserFormData({ username: '', password: '' }); setFormError(''); setIsUserModalOpen(true); };
+  const openEditModal = (u) => { setEditingUser(u); setUserFormData({ username: u.username, password: '' }); setFormError(''); setIsUserModalOpen(true); };
 
   const handleUserSubmit = async () => {
-    const API_URL = `http://${window.location.hostname}:3000`;
+    setFormError('');
+    // Validación cliente
+    if (!userFormData.username || userFormData.username.length < 3 || userFormData.username.length > 30) {
+      return setFormError('El usuario debe tener entre 3 y 30 caracteres.');
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(userFormData.username)) {
+      return setFormError('Sólo letras, números y guion bajo.');
+    }
+    if (!editingUser && (!userFormData.password || userFormData.password.length < 8)) {
+      return setFormError('La contraseña debe tener al menos 8 caracteres.');
+    }
+    if (userFormData.password && userFormData.password.length > 0 && userFormData.password.length < 8) {
+      return setFormError('La contraseña debe tener al menos 8 caracteres.');
+    }
+
     try {
       const url = editingUser ? `${API_URL}/api/admin/user/${editingUser.id}` : `${API_URL}/api/admin/users`;
       const method = editingUser ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-          body: JSON.stringify(userFormData)
-      });
+      // Sólo enviar password si fue proporcionado
+      const body = { username: userFormData.username };
+      if (userFormData.password && userFormData.password.trim() !== '') {
+        body.password = userFormData.password;
+      }
+      const res = await authFetch(url, { method, body: JSON.stringify(body) });
       if (res.ok) { setIsUserModalOpen(false); addToast("Éxito", 'success'); fetchData(); }
-      else { const err = await res.json(); addToast(err.error, 'error'); }
-    } catch (e) { addToast("Error de conexión", 'error'); }
+      else { const err = await res.json().catch(() => ({})); addToast(err.error || 'Error', 'error'); }
+    } catch (e) { addToast(e.message || "Error de conexión", 'error'); }
   };
 
   const executeBulkAction = async (actionType) => {
@@ -161,23 +173,18 @@ const UsersPage = () => {
       confirmText: "Proceder",
       variant: actionType === 'delete' ? "danger" : "primary",
       onConfirm: async () => {
-        const API_URL = `http://${window.location.hostname}:3000`;
         try {
             const promises = idsToProcess.map(id => {
             if (actionType === 'delete') {
-                return fetch(`${API_URL}/api/admin/user/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'x-access-token': token }
-                });
+                return authFetch(`${API_URL}/api/admin/user/${id}`, { method: 'DELETE' });
             } else {
                 const currentUser = users.find(u => u.id === id);
                 if (!currentUser) return Promise.resolve();
                 const needsAction = (actionType === 'ban' && currentUser.is_active) || (actionType === 'unban' && !currentUser.is_active);
                 if (needsAction) {
-                    return fetch(`${API_URL}/api/admin/toggle-status`, {
+                    return authFetch(`${API_URL}/api/admin/toggle-status`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-                        body: JSON.stringify({ targetUserId: id })
+                        body: JSON.stringify({ targetUserId: id }),
                     });
                 }
                 return Promise.resolve();
@@ -188,7 +195,7 @@ const UsersPage = () => {
             setSelectedIds(new Set());
             fetchData();
         } catch(e) {
-            addToast("Error ejecutando acción masiva", 'error');
+            addToast(e.message || "Error ejecutando acción masiva", 'error');
         }
       }
     });
@@ -242,8 +249,27 @@ const UsersPage = () => {
 
       <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={editingUser ? "Editar" : "Nuevo"}>
         <div className="space-y-4">
-          <Input label="Usuario" value={userFormData.username} onChange={e => setUserFormData({...userFormData, username: e.target.value})} />
-          <Input type="password" label="Clave" value={userFormData.password} onChange={e => setUserFormData({...userFormData, password: e.target.value})} placeholder="******" />
+          <Input
+            label="Usuario"
+            value={userFormData.username}
+            onChange={e => setUserFormData({...userFormData, username: e.target.value})}
+            maxLength={30}
+            error={formError && /usuario|caracteres|letras/i.test(formError) ? formError : null}
+          />
+          <Input
+            type="password"
+            label={editingUser ? "Nueva Clave (opcional)" : "Clave"}
+            value={userFormData.password}
+            onChange={e => setUserFormData({...userFormData, password: e.target.value})}
+            placeholder="Mínimo 8 caracteres"
+            maxLength={200}
+            error={formError && /contraseña|password|caracteres/i.test(formError) ? formError : null}
+          />
+          {formError && !/usuario|caracteres|letras|contraseña|password/i.test(formError) && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm rounded-md">
+              {formError}
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="secondary" onClick={() => setIsUserModalOpen(false)}>CANCELAR</Button>
             <Button onClick={handleUserSubmit}>GUARDAR</Button>

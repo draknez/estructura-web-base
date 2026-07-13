@@ -10,40 +10,36 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SearchInput from '../../components/ui/SearchInput';
 import RoleBadge from '../../components/ui/RoleBadge';
 import ActionButton from '../../components/ui/ActionButton';
-import { Navigate } from 'react-router-dom';
 
 const GroupsPage = () => {
-  const { user, token } = useAuth();
+  const { authFetch, API_URL } = useAuth();
   const { addToast } = useToast();
   const { appStyle, navbarPosition } = useTheme();
-  
-  const isSa = user?.roles?.includes('Sa');
-  if (!isSa) return <Navigate to="/profile" replace />;
 
   const [groups, setGroups] = useState([]);
-  const [users, setUsers] = useState([]); 
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [managingGroup, setManagingGroup] = useState(null); 
+  const [managingGroup, setManagingGroup] = useState(null);
   const [memberSearch, setMemberSearch] = useState("");
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false });
-  
+
   // Filtros y Paginación
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  
+
   // Form State
   const [createData, setCreateData] = useState({ name: '', description: '', parent_id: '' });
   const [editData, setEditData] = useState({ name: '', description: '' });
+  const [formError, setFormError] = useState('');
 
   const fetchGroups = async () => {
     setLoading(true);
     try {
-      const API_URL = `http://${window.location.hostname}:3000`;
-      const res = await fetch(`${API_URL}/api/groups`, { headers: { 'x-access-token': token } });
+      const res = await authFetch(`${API_URL}/api/groups`);
       if (res.ok) setGroups(await res.json());
     } catch (e) { addToast(e.message, 'error'); }
     finally { setLoading(false); }
@@ -51,8 +47,7 @@ const GroupsPage = () => {
 
   const fetchUsers = async () => {
     try {
-      const API_URL = `http://${window.location.hostname}:3000`;
-      const res = await fetch(`${API_URL}/api/admin/users`, { headers: { 'x-access-token': token } });
+      const res = await authFetch(`${API_URL}/api/admin/users`);
       if (res.ok) setUsers(await res.json());
     } catch (e) {}
   };
@@ -73,81 +68,78 @@ const GroupsPage = () => {
 
   // Acciones
   const handleCreateSubmit = async () => {
-    const API_URL = `http://${window.location.hostname}:3000`;
+    setFormError('');
+    if (!createData.name || !createData.name.trim()) return setFormError('Nombre requerido.');
+    if (createData.name.length > 100) return setFormError('Nombre demasiado largo (máx 100).');
     try {
-      const res = await fetch(`${API_URL}/api/groups`, {
+      const res = await authFetch(`${API_URL}/api/groups`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-        body: JSON.stringify(createData)
+        body: JSON.stringify(createData),
       });
       if (res.ok) { setIsCreateOpen(false); setCreateData({ name: '', description: '', parent_id: '' }); addToast("Grupo creado", 'success'); fetchGroups(); }
-      else { const err = await res.json(); addToast(err.error, 'error'); }
-    } catch (e) { addToast("Error", 'error'); }
+      else { const err = await res.json().catch(() => ({})); addToast(err.error || 'Error', 'error'); }
+    } catch (e) { addToast(e.message || "Error", 'error'); }
   };
 
   const handleUpdateGroup = async () => {
-    const API_URL = `http://${window.location.hostname}:3000`;
     try {
-      const res = await fetch(`${API_URL}/api/groups/${managingGroup.id}`, {
+      const res = await authFetch(`${API_URL}/api/groups/${managingGroup.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-        body: JSON.stringify(editData)
+        body: JSON.stringify(editData),
       });
       if (res.ok) { addToast("Actualizado", 'success'); fetchGroups(); setManagingGroup(prev => ({ ...prev, ...editData })); }
-      else { const err = await res.json(); addToast(err.error, 'error'); }
-    } catch (e) { addToast("Error", 'error'); }
+      else { const err = await res.json().catch(() => ({})); addToast(err.error || 'Error', 'error'); }
+    } catch (e) { addToast(e.message || "Error", 'error'); }
   };
 
   const handleDelete = (id) => {
     setConfirmConfig({
       isOpen: true,
       title: "Eliminar Grupo",
-      description: "¿Confirmar eliminación?",
+      description: "¿Confirmar eliminación? Los sub-grupos pasarán a raíz y los usuarios quedarán sin grupo.",
       confirmText: "Eliminar",
       variant: "danger",
       onConfirm: async () => {
-        const API_URL = `http://${window.location.hostname}:3000`;
-        const res = await fetch(`${API_URL}/api/groups/${id}`, { method: 'DELETE', headers: { 'x-access-token': token } });
-        if (res.ok) { addToast("Eliminado", 'success'); fetchGroups(); }
-        else addToast("Error", 'error');
+        try {
+          const res = await authFetch(`${API_URL}/api/groups/${id}`, { method: 'DELETE' });
+          if (res.ok) { addToast("Eliminado", 'success'); fetchGroups(); }
+          else { const err = await res.json().catch(() => ({})); addToast(err.error || 'Error', 'error'); }
+        } catch (e) { addToast(e.message || "Error", 'error'); }
       }
     });
   };
 
   const handleAssignMember = async (userId, groupId) => {
-    const API_URL = `http://${window.location.hostname}:3000`;
     try {
-      const res = await fetch(`${API_URL}/api/admin/user/${userId}`, {
+      const res = await authFetch(`${API_URL}/api/admin/user/${userId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-        body: JSON.stringify({ group_id: groupId }) 
+        body: JSON.stringify({ group_id: groupId }),
       });
       if (res.ok) { fetchGroups(); fetchUsers(); addToast("Cambio guardado", 'success'); }
-    } catch (e) { addToast("Error", 'error'); }
+      else { const err = await res.json().catch(() => ({})); addToast(err.error || 'Error', 'error'); }
+    } catch (e) { addToast(e.message || "Error", 'error'); }
   };
 
   const handleSetLeader = async (groupId, leaderId) => {
-    const API_URL = `http://${window.location.hostname}:3000`;
     try {
-      const res = await fetch(`${API_URL}/api/groups/${groupId}`, {
+      const res = await authFetch(`${API_URL}/api/groups/${groupId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-        body: JSON.stringify({ leader_id: leaderId })
+        body: JSON.stringify({ leader_id: leaderId }),
       });
       if (res.ok) { fetchGroups(); setManagingGroup(prev => ({ ...prev, leader_id: leaderId })); addToast("Encargado asignado", 'success'); }
-    } catch (e) { addToast("Error", 'error'); }
+      else { const err = await res.json().catch(() => ({})); addToast(err.error || 'Error', 'error'); }
+    } catch (e) { addToast(e.message || "Error", 'error'); }
   };
 
   const handleToggleAdmin = async (userId, isNowAdmin) => {
-    const API_URL = `http://${window.location.hostname}:3000`;
     try {
-      const res = await fetch(`${API_URL}/api/admin/toggle-role`, {
+      const res = await authFetch(`${API_URL}/api/admin/toggle-role`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
-        body: JSON.stringify({ targetUserId: userId, roleName: 'adm' })
+        body: JSON.stringify({ targetUserId: userId, roleName: 'adm' }),
       });
       if (res.ok) { fetchUsers(); addToast("Rol actualizado", 'success'); }
-    } catch (e) { addToast("Error", 'error'); }
+      else { const err = await res.json().catch(() => ({})); addToast(err.error || 'Error', 'error'); }
+    } catch (e) { addToast(e.message || "Error", 'error'); }
   };
 
   const columns = [
@@ -190,10 +182,21 @@ const GroupsPage = () => {
 
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Nuevo Grupo">
         <div className="space-y-4">
-          <Input label="Nombre" value={createData.name} onChange={e => setCreateData({...createData, name: e.target.value})} />
-          <Input label="Descripción" value={createData.description} onChange={e => setCreateData({...createData, description: e.target.value})} />
+          <Input
+            label="Nombre"
+            value={createData.name}
+            onChange={e => setCreateData({...createData, name: e.target.value})}
+            maxLength={100}
+            error={formError && /nombre|caracteres/i.test(formError) ? formError : null}
+          />
+          <Input
+            label="Descripción"
+            value={createData.description}
+            onChange={e => setCreateData({...createData, description: e.target.value})}
+            maxLength={500}
+          />
           <div className="flex flex-col gap-1.5"><label className="text-[10px] font-black uppercase text-gray-500 ml-1">Grupo Padre</label><select className="h-10 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 text-xs font-bold outline-none" value={createData.parent_id} onChange={e => setCreateData({...createData, parent_id: e.target.value})}><option value="">NINGUNO (RAÍZ)</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
-          <div className="flex justify-end gap-2 pt-4"><Button variant="secondary" onClick={() => setIsCreateOpen(false)}>CANCELAR</Button><Button onClick={handleCreateSubmit}>GUARDAR</Button></div>
+          <div className="flex justify-end gap-2 pt-4"><Button variant="secondary" onClick={() => { setIsCreateOpen(false); setFormError(''); }}>CANCELAR</Button><Button onClick={handleCreateSubmit}>GUARDAR</Button></div>
         </div>
       </Modal>
 

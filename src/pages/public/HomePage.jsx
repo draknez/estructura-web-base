@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 
+const API_URL = '';
+
 const HomePage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchStatus = async () => {
     try {
-      const API_URL = `http://${window.location.hostname}:3000`;
-      const res = await fetch(`${API_URL}/api/users/status`);
+      const res = await fetch(`${API_URL}/api/users/status`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -22,7 +23,7 @@ const HomePage = () => {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 2000);
+    const interval = setInterval(fetchStatus, 5000); // 5s en vez de 2s (reduce carga)
     return () => clearInterval(interval);
   }, []);
 
@@ -41,27 +42,29 @@ const HomePage = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {users.map((u) => (
-            <Card key={u.id} className="p-4 flex items-center justify-between group hover:border-teal-500/30 transition-all duration-300">
+            <Card key={u.username} className="p-4 flex items-center justify-between group hover:border-teal-500/30 transition-all duration-300">
               <div className="flex items-center gap-3">
                 {/* Avatar */}
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-white shadow-md transition-colors ${u.online ? 'bg-teal-600' : 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600'}`}>
                   {u.username.charAt(0).toUpperCase()}
                 </div>
-                
+
                 <div className="flex flex-col">
                   <span className="font-bold text-gray-800 dark:text-gray-200 leading-tight group-hover:text-teal-600 transition-colors">
                     {u.username}
                   </span>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">
-                    ID: {u.id}
-                  </span>
+                  {u.group_name && (
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">
+                      {u.group_name}
+                    </span>
+                  )}
                 </div>
               </div>
-              
+
               {/* Status Pill */}
               <div className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5 ${
-                u.online 
-                  ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                u.online
+                  ? 'bg-emerald-500 text-white shadow-emerald-500/20'
                   : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600'
               }`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${u.online ? 'bg-white animate-pulse' : 'bg-gray-400 dark:bg-gray-600'}`}></span>

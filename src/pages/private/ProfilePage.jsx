@@ -1,18 +1,21 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import { Card } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import RoleBadge from '../../components/ui/RoleBadge';
 
 const ProfilePage = () => {
-  const { user, token, logout } = useAuth();
+  const { user, authFetch, API_URL, logout } = useAuth();
+  const { addToast } = useToast();
   const { appStyle, toggleAppStyle } = useTheme();
   const navigate = useNavigate();
   const [showAdminTools, setShowAdminTools] = useState(false);
   const [seedCount, setSeedCount] = useState(10);
+  const [seedPassword, setSeedPassword] = useState('');
 
   // Verificar roles de forma segura
   const roles = user.roles || [];
@@ -27,59 +30,74 @@ const ProfilePage = () => {
   // Estilos dinámicos para el nombre de usuario según el rol
   let nameBadgeClass = "bg-white text-sky-600";
   if (isAdmin) nameBadgeClass = "bg-white text-emerald-700";
-  if (isSuperAdmin) nameBadgeClass = "bg-white text-[#855a15]"; // Marrón dorado oscuro
+  if (isSuperAdmin) nameBadgeClass = "bg-white text-[#855a15]";
 
   // Generar Usuarios Masivos
   const handleSeedUsers = async () => {
-    if (!confirm(`¿Generar ${seedCount} usuarios aleatorios?`)) return;
-    
+    const parsed = parseInt(seedCount, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 500) {
+      return addToast('Cantidad debe estar entre 1 y 500', 'error');
+    }
+    if (!seedPassword || seedPassword.length < 8) {
+      return addToast('La contraseña debe tener al menos 8 caracteres.', 'error');
+    }
+    if (seedPassword === '123456') {
+      return addToast('La contraseña es demasiado débil.', 'error');
+    }
+    if (!window.confirm(`¿Generar ${parsed} usuarios con la contraseña indicada?`)) return;
+
     try {
-      const API_URL = `http://${window.location.hostname}:3000`;
-      const res = await fetch(`${API_URL}/api/admin/seed-users`, {
+      const res = await authFetch(`${API_URL}/api/admin/seed-users`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-access-token': token 
-        },
-        body: JSON.stringify({ count: parseInt(seedCount) })
+        body: JSON.stringify({ count: parsed, password: seedPassword }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        alert(`✅ ${data.message}`);
+        window.alert(`✅ ${data.message}`);
       } else {
-        alert("Error al generar usuarios");
+        const err = await res.json().catch(() => ({}));
+        window.alert(`Error: ${err.error || 'desconocido'}`);
       }
     } catch (error) {
-      alert("Error de conexión");
+      window.alert(`Error de conexión: ${error.message}`);
     }
   };
 
-  // Manejar Reset Total (Solo SuperAdmin)
+  // Manejar Reset Total (Solo SuperAdmin) — typed-string 'RESET' + re-auth con contraseña
   const handleSystemReset = async () => {
-    const confirm1 = confirm("⛔ ¡PELIGRO CRÍTICO! ⛔\n\n¿Estás a punto de ELIMINAR TODOS LOS USUARIOS del sistema (incluido tú mismo)?\n\nEsta acción no se puede deshacer. El sistema volverá a estar vacío.");
-    if (!confirm1) return;
+    const typed = window.prompt(
+      "⛔ PELIGRO CRÍTICO ⛔\n\nVas a ELIMINAR TODOS LOS USUARIOS del sistema (incluido tú mismo).\nEsta acción NO se puede deshacer.\n\nEscribe RESET (en mayúsculas) para confirmar:"
+    );
+    if (typed !== 'RESET') {
+      if (typed !== null) window.alert('Confirmación incorrecta. Reset cancelado.');
+      return;
+    }
 
-    const confirm2 = confirm("¿Estás realmente seguro? \n\nEscribe 'SI' en tu mente y pulsa Aceptar para confirmar la DESTRUCCIÓN TOTAL de los datos.");
-    if (!confirm2) return;
+    const confirmPassword = window.prompt(
+      "🔐 STEP-UP AUTH\n\nPor seguridad, re-ingresa tu contraseña actual de SuperAdmin:"
+    );
+    if (!confirmPassword) {
+      window.alert('Operación cancelada.');
+      return;
+    }
 
     try {
-      const API_URL = `http://${window.location.hostname}:3000`;
-      const res = await fetch(`${API_URL}/api/admin/system-reset`, {
+      const res = await authFetch(`${API_URL}/api/admin/system-reset`, {
         method: 'POST',
-        headers: { 'x-access-token': token }
+        body: JSON.stringify({ confirmation: 'RESET', confirmPassword }),
       });
 
       if (res.ok) {
-        alert("♻️ El sistema ha sido reiniciado. Serás redirigido al inicio.");
-        logout(); // Limpiar estado local
-        navigate('/'); // Redirigir a home
+        window.alert('♻️ Sistema reiniciado. Serás redirigido al inicio.');
+        logout();
+        navigate('/');
       } else {
-        const err = await res.json();
-        alert("Error: " + err.error);
+        const err = await res.json().catch(() => ({}));
+        window.alert(`Error: ${err.error || 'desconocido'}`);
       }
     } catch (error) {
-      alert("Error de conexión crítico.");
+      window.alert(`Error de conexión crítico: ${error.message}`);
     }
   };
 
@@ -144,9 +162,9 @@ const ProfilePage = () => {
                         <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 flex flex-col gap-2">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Seed Engine</p>
                           <div className="flex gap-2">
-                            <Input 
-                              type="number" 
-                              value={seedCount} 
+                            <Input
+                              type="number"
+                              value={seedCount}
                               onChange={(e) => setSeedCount(e.target.value)}
                               className="w-20 text-center h-10 font-bold"
                               min="1"
@@ -156,6 +174,14 @@ const ProfilePage = () => {
                               GENERAR
                             </Button>
                           </div>
+                          <Input
+                            type="password"
+                            value={seedPassword}
+                            onChange={(e) => setSeedPassword(e.target.value)}
+                            placeholder="Contraseña para usuarios generados (≥8 chars)"
+                            className="h-10 text-sm"
+                            maxLength={200}
+                          />
                         </div>
 
                         {/* Reset */}

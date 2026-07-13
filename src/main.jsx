@@ -11,6 +11,7 @@ import { ToastProvider } from './context/ToastContext';
 // Layouts
 import BaseLayout from './layouts/PublicLayout';
 import PrivateLayout from './layouts/PrivateLayout';
+import RequireRole from './components/RequireRole';
 
 // Pages
 import HomePage from './pages/public/HomePage';
@@ -36,9 +37,21 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
               {/* Rutas Privadas */}
               <Route element={<PrivateLayout />}>
-                <Route path="profile" element={<ProfilePage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="groups" element={<GroupsPage />} />
+                <Route path="profile" element={
+                  <RequireRole roles={['usr', 'adm', 'Sa']}>
+                    <ProfilePage />
+                  </RequireRole>
+                } />
+                <Route path="users" element={
+                  <RequireRole roles={['adm', 'Sa']}>
+                    <UsersPage />
+                  </RequireRole>
+                } />
+                <Route path="groups" element={
+                  <RequireRole roles={['Sa']}>
+                    <GroupsPage />
+                  </RequireRole>
+                } />
               </Route>
             </Routes>
           </BrowserRouter>

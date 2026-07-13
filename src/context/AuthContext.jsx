@@ -2,40 +2,75 @@ import { createContext, useState, useEffect, useContext } from 'react';
 
 const AuthContext = createContext();
 
+const API_URL = '';
+
 export const useAuth = () => useContext(AuthContext);
+
+async function authFetch(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+
+  // Cualquier 401 = sesión inválida/revocada/expirada. Forzar logout.
+  if (res.status === 401) {
+    const onLogout = AuthContext._on401;
+    if (typeof onLogout === 'function') onLogout();
+    throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.');
+  }
+
+  return res;
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Detectamos la IP automáticamente para que funcione en red local
-  const API_URL = `http://${window.location.hostname}:3000`;
+  const handle401 = () => {
+    setUser(null);
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  };
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      setUser(JSON.parse(savedUser));
-      setToken(savedToken);
-    }
-    setLoading(false);
+    AuthContext._on401 = handle401;
+    return () => { AuthContext._on401 = null; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/me`, { credentials: 'include' });
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+        }
+      } catch {
+        /* offline o sin sesión */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const login = async (username, password) => {
     try {
       const res = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
       setUser(data.user);
-      setToken(data.token);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -46,16 +81,13 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      if (!res.ok) throw new Error(data.error || 'Error al registrar');
       setUser(data.user);
-      setToken(data.token);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -63,25 +95,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    if (user && user.username) {
-      try {
-        await fetch(`${API_URL}/api/logout`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: user.username })
-        });
-      } catch (error) {
-        console.error("Error al notificar logout", error);
-      }
+    try {
+      await authFetch(`${API_URL}/api/logout`, { method: 'POST' });
+    } catch {
+      /* el backend puede estar caído; el estado local se limpia igual */
     }
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
     setUser(null);
-    setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading, API_URL, authFetch }}>
       {!loading && children}
     </AuthContext.Provider>
   );

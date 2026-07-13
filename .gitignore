@@ -4,3 +4,7 @@ dist
 database.sqlite
 *.log
 .DS_Store
+
+# Cookie jars temporales de curl (smoke tests)
+.c-*.txt
+.test-*.txt
