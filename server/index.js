@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { ipKeyGenerator } from 'express-rate-limit';
 import { Validators } from './validators.js';
+import { audit, listAudit } from './audit.js';
 
 dotenv.config();
 
@@ -168,6 +169,10 @@ async function initDB() {
   const SQL = await initSqlJs();
   let needsSave = false;
 
+  // Pre-asignar handles para que audit.js pueda insertar durante la migración.
+  global.__balog_db = db;
+  global.__balog_db_save = saveDB;
+
   if (fs.existsSync(DB_FILE)) {
     const filebuffer = fs.readFileSync(DB_FILE);
     db = new SQL.Database(filebuffer);
@@ -272,7 +277,27 @@ async function initDB() {
     }
   }
 
+  // audit_log
+  db.run(`CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_id INTEGER,
+    action TEXT NOT NULL,
+    target TEXT,
+    meta TEXT,
+    created_at INTEGER NOT NULL
+  )`);
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON audit_log (actor_id, created_at DESC)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log (action)');
+  } catch (e) {
+    /* noop */
+  }
+
   if (needsSave) saveDB();
+
+  // Re-asegurar handles tras inicialización completa (cubre el caso async).
+  global.__balog_db = db;
+  global.__balog_db_save = saveDB;
 }
 
 function saveDB() {
@@ -282,6 +307,10 @@ function saveDB() {
 }
 
 initDB();
+
+// Exponer db y saveDB a módulos (audit.js) — también se re-asigna dentro de
+// initDB() para cubrir el caso de inicialización async.
+// (No-op si initDB aún no resolvió, pero los endpoints ya esperan a la BD.)
 
 // ============================================
 // HELPERS
@@ -522,6 +551,12 @@ app.post('/api/register', authLimiter, (req, res) => {
     onlineUsers.add(username);
     setTokenCookie(res, token);
 
+    audit(userId, isFirstUser ? 'user.genesis_register' : 'user.register', userId, {
+      is_first_user: isFirstUser,
+      roles,
+      ip: req.ip,
+    });
+
     res.json({ user: { id: userId, username, roles } });
   } catch (err) {
     safeError(res, err, 'Error al registrar el usuario.');
@@ -539,12 +574,15 @@ app.post('/api/login', authLimiter, (req, res) => {
     stmt.free();
 
     if (!user || !user.id) {
+      audit(null, 'user.login_failed', username, { reason: 'not_found', ip: req.ip });
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
     if (!bcrypt.compareSync(password, user.password)) {
+      audit(user.id, 'user.login_failed', username, { reason: 'bad_password', ip: req.ip });
       return res.status(401).json({ error: 'Clave incorrecta' });
     }
     if (user.is_active !== 1) {
+      audit(user.id, 'user.login_failed', username, { reason: 'inactive', ip: req.ip });
       return res.status(403).json({ error: 'Cuenta desactivada. Contacte al administrador.' });
     }
 
@@ -566,6 +604,7 @@ app.post('/api/login', authLimiter, (req, res) => {
 
 // LOGOUT — ahora requiere auth y usa req.username
 app.post('/api/logout', verifyToken, (req, res) => {
+  audit(req.userId, 'user.logout', req.userId, { username: req.username });
   onlineUsers.delete(req.username);
   clearTokenCookie(res);
   res.json({ success: true });
@@ -676,6 +715,11 @@ app.post('/api/admin/toggle-role', apiLimiter, verifyToken, verifyAdmin, (req, r
     // Revocar tokens del target user (forzar re-login)
     db.run('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [targetId]);
     saveDB();
+
+    audit(req.userId, exists ? 'user.role_removed' : 'user.role_granted', targetId, {
+      role: roleName,
+    });
+
     res.json({ success: true });
   } catch (err) {
     safeError(res, err);
@@ -716,6 +760,10 @@ app.post('/api/admin/toggle-status', apiLimiter, verifyToken, verifyAdmin, (req,
     saveDB();
 
     if (newStatus === 0) onlineUsers.delete(row.username);
+
+    audit(req.userId, newStatus === 0 ? 'user.deactivated' : 'user.activated', targetId, {
+      username: row.username,
+    });
 
     res.json({ success: true, newStatus });
   } catch (err) {
@@ -810,6 +858,9 @@ app.put(
       db.run('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [targetId]);
 
       saveDB();
+
+      audit(req.userId, 'user.updated', targetId, { changed_fields: updates.map((u) => u.split(' = ')[0]) });
+
       res.json({ success: true });
     } catch (err) {
       safeError(res, err);
@@ -860,6 +911,7 @@ app.post('/api/admin/users', apiLimiter, verifyToken, verifyAdmin, (req, res) =>
     stmtRole.free();
 
     saveDB();
+    audit(req.userId, 'user.admin_created', userId, { username, group_id: autoGroupId });
     res.json({ success: true, id: userId });
   } catch (err) {
     safeError(res, err);
@@ -890,7 +942,21 @@ app.delete('/api/admin/user/:id', apiLimiter, verifyToken, verifySuperAdmin, (re
     saveDB();
 
     onlineUsers.delete(targetUsername);
+    audit(req.userId, 'user.deleted', targetId, { username: targetUsername });
     res.json({ success: true });
+  } catch (err) {
+    safeError(res, err);
+  }
+});
+
+// AUDIT LOG (Sa only)
+app.get('/api/admin/audit-log', apiLimiter, verifyToken, verifySuperAdmin, (req, res) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 100;
+    const actorId = req.query.actorId ? parseInt(req.query.actorId, 10) : undefined;
+    const action = req.query.action ? String(req.query.action) : undefined;
+    const rows = listAudit({ limit, actorId, action });
+    res.json(rows);
   } catch (err) {
     safeError(res, err);
   }
@@ -924,6 +990,10 @@ app.post('/api/admin/system-reset', apiLimiter, verifyToken, verifySuperAdmin, (
     }
 
     console.warn(`⚠️ SYSTEM RESET INICIADO POR USUARIO ID ${req.userId}`);
+
+    // Audit ANTES de borrar (luego el actor también desaparecerá).
+    // Conservamos audit_log para post-mortem forense.
+    audit(req.userId, 'system.reset_confirmed', req.userId, { ip: req.ip, destructive: true });
 
     db.run('DELETE FROM user_roles');
     db.run('DELETE FROM users');
@@ -997,6 +1067,8 @@ app.post('/api/admin/seed-users', apiLimiter, verifyToken, verifySuperAdmin, see
 
     db.run('COMMIT');
     saveDB();
+
+    audit(req.userId, 'user.seed_generated', null, { count: inserted, ip: req.ip });
 
     res.json({ success: true, message: `${inserted} usuarios generados.` });
   } catch (err) {
@@ -1106,8 +1178,10 @@ app.post('/api/groups', apiLimiter, verifyToken, verifyAdmin, (req, res) => {
       description ? String(description).trim() : null,
       parentIdInt,
     ]);
+    const newId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
     saveDB();
-    res.json({ success: true });
+    audit(req.userId, 'group.created', newId, { name: String(name).trim(), parent_id: parentIdInt });
+    res.json({ success: true, id: newId });
   } catch (err) {
     safeError(res, err);
   }
@@ -1177,6 +1251,7 @@ app.put('/api/groups/:id', apiLimiter, verifyToken, verifyAdmin, (req, res) => {
     values.push(id);
     db.run(`UPDATE groups SET ${updates.join(', ')} WHERE id = ?`, values);
     saveDB();
+    audit(req.userId, 'group.updated', id, { changed_fields: updates.map((u) => u.split(' = ')[0]) });
     res.json({ success: true });
   } catch (err) {
     safeError(res, err);
@@ -1201,6 +1276,7 @@ app.delete('/api/groups/:id', apiLimiter, verifyToken, verifyAdmin, (req, res) =
     db.run('DELETE FROM groups WHERE id = ?', [id]);
 
     saveDB();
+    audit(req.userId, 'group.deleted', id, {});
     res.json({ success: true });
   } catch (err) {
     safeError(res, err);
@@ -1232,18 +1308,88 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: message });
 });
 
+// ============================================
+// HEALTH (sin auth, para k8s/load balancer) — antes del 404 catch-all
+// ============================================
+app.get('/health', (_req, res) => {
+  try {
+    const stmt = db.prepare('SELECT 1 as ok');
+    stmt.step();
+    stmt.free();
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+      db: 'ok',
+    });
+  } catch (err) {
+    res.status(503).json({ status: 'degraded', db: 'fail', error: err.message });
+  }
+});
+
+app.get('/ready', (_req, res) => {
+  if (!db) return res.status(503).json({ ready: false });
+  res.json({ ready: true });
+});
+
 // 404 catch-all
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada.' });
 });
 
 // ============================================
-// START
+// START + GRACEFUL SHUTDOWN
 // ============================================
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`📡 Server: http://${HOST}:${PORT}`);
   console.log(`🔒 JWT_SECRET: ${SECRET_KEY.length >= 32 ? 'OK' : 'INSEGURO'} (${SECRET_KEY.length} chars)`);
   console.log(`🔑 bcrypt rounds: ${BCRYPT_ROUNDS}`);
   console.log(`🌐 CORS allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
   console.log(`📝 Registro público: ${ALLOW_PUBLIC_REGISTER ? 'HABILITADO' : 'DESHABILITADO'}`);
+});
+
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[shutdown] Señal ${signal} recibida. Cerrando gracefully...`);
+
+  // 1. Dejar de aceptar conexiones nuevas
+  server.close((err) => {
+    if (err) console.error('[shutdown] Error cerrando HTTP server:', err);
+
+    // 2. Persistir BD
+    try {
+      saveDB();
+      console.log('[shutdown] BD persistida.');
+    } catch (e) {
+      console.error('[shutdown] Error guardando BD:', e);
+    }
+
+    // 3. Cerrar sql.js
+    try {
+      db?.close();
+    } catch (e) {
+      /* noop */
+    }
+
+    console.log('[shutdown] Listo. Bye.');
+    process.exit(err ? 1 : 0);
+  });
+
+  // Force-exit si tarda demasiado (10s)
+  setTimeout(() => {
+    console.error('[shutdown] Timeout. Forzando exit.');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+  shutdown('uncaughtException');
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
 });
