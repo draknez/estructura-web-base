@@ -56,6 +56,10 @@ Endpoints `Sa`-only salvo `verify`:
 | `POST` | `/api/auth/2fa/verify` | Body `{ temp_token, code }`. Canjea sesión completa |
 | `POST` | `/api/auth/2fa/disable`| Body `{ password, code }` |
 
+**Rate limit de códigos 2FA:** `verify` y `enable` están limitados a **5
+intentos / 15 min** por (IP + username extraído del temp_token o userId).
+Esto mitiga fuerza bruta sobre los 6 dígitos (1M combinaciones).
+
 Flujo de login con 2FA activo:
 1. `POST /api/login` → `{ requires_2fa: true, temp_token }`
 2. `POST /api/auth/2fa/verify` con código TOTP **o** un backup code sin usar

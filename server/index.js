@@ -171,6 +171,41 @@ const seedLimiter = rateLimit({
   message: { error: 'Demasiadas ejecuciones del generador de usuarios. Espere 1 hora.' },
 });
 
+// 2FA code verification: 6 dígitos = 1M combinaciones, hay que rate-limitar.
+// Key = IP + username extraído del temp_token (sin verificar firma; basta para
+// agrupar intentos). Si el temp_token es inválido, se agrupa por '' igualmente
+// (atacante con token basura sigue consumiendo cuota por IP).
+const verify2FALimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: TESTING ? 100000 : 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    let username = '';
+    try {
+      const decoded = jwt.decode(req.body && req.body.temp_token);
+      if (decoded && typeof decoded.username === 'string') {
+        username = decoded.username.trim().toLowerCase();
+      }
+    } catch {
+      /* token malformado: agrupamos por IP solo */
+    }
+    return `2fa-verify::${ipKeyGenerator(req.ip)}::${username}`;
+  },
+  message: { error: 'Demasiados intentos de código 2FA. Bloqueado por 15 minutos.' },
+});
+
+// Setup/Enable: también valida un código TOTP. Misma protección pero separado
+// porque las claves del usuario son distintas (sesión completa vs temp_token).
+const enable2FALimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: TESTING ? 100000 : 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `2fa-enable::${ipKeyGenerator(req.ip)}::${req.userId || ''}`,
+  message: { error: 'Demasiados intentos de activación 2FA. Bloqueado por 15 minutos.' },
+});
+
 // ============================================
 // DB INIT
 // ============================================
@@ -607,7 +642,7 @@ app.post('/api/auth/2fa/setup', apiLimiter, verifyToken, verifySuperAdmin, (req,
 });
 
 // POST /api/auth/2fa/enable — confirma código y activa 2FA + emite backup codes
-app.post('/api/auth/2fa/enable', apiLimiter, verifyToken, verifySuperAdmin, (req, res) => {
+app.post('/api/auth/2fa/enable', apiLimiter, enable2FALimiter, verifyToken, verifySuperAdmin, (req, res) => {
   try {
     const { code } = req.body;
     if (typeof code !== 'string' || !/^\d{6}$/.test(code)) {
@@ -663,7 +698,7 @@ app.post('/api/auth/2fa/enable', apiLimiter, verifyToken, verifySuperAdmin, (req
 });
 
 // POST /api/auth/2fa/verify — canjea temp_token + código TOTP por sesión completa
-app.post('/api/auth/2fa/verify', apiLimiter, verifyTemp2FAToken, (req, res) => {
+app.post('/api/auth/2fa/verify', apiLimiter, verify2FALimiter, verifyTemp2FAToken, (req, res) => {
   try {
     const { code } = req.body;
     if (typeof code !== 'string') {
