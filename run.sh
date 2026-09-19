@@ -11,8 +11,8 @@ echo ""
 export NODE_OPTIONS="--max-old-space-size=4096"
 
 # Usamos node --watch (Disponible en Node 18.11+)
-/data/data/com.termux/files/usr/bin/pnpm exec concurrently \
+pnpm exec concurrently \
   "node --watch server/index.js" \
-  "/data/data/com.termux/files/usr/bin/pnpm dev --host" \
+  "pnpm dev --host" \
   --names "SERVER,CLIENT" \
   --prefix-colors "yellow,cyan"

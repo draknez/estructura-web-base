@@ -1,6 +1,6 @@
-# 🚀 Estructura Web Base (BaLog)
+# 🚀 Neusit
 
-**BaLog** es una plantilla Full Stack profesional diseñada para construir aplicaciones web seguras y escalables con gestión organizacional.
+**Neusit** es una plataforma web profesional Full Stack diseñada para construir aplicaciones seguras, modulares y escalables.
 
 ## 🛠️ Stack Tecnológico
 - **Frontend:** React 18 + Vite + Tailwind CSS v4

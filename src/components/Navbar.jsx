@@ -1,28 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Sun, 
+  Moon, 
+  ArrowUp, 
+  ArrowDown, 
+  User, 
+  Activity, 
+  Users, 
+  Layers, 
+  LogOut, 
+  ChevronDown 
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import Button from './ui/Button';
 
-// --- ICONS (Simple SVGs) ---
-const Icons = {
-  Profile: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
-  Monitor: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
-  Users: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
-  Groups: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
-  Moon: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>,
-  Sun: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
-  Logout: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
-  ChevronDown: () => <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>,
-  ArrowDown: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7-7-7m14-8l-7 7-7-7" /></svg>,
-  ArrowUp: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7 7 7M5 18l7-7 7 7" /></svg>
-};
-
+// Puntos de rol coherentes con el nuevo RoleBadge
 const RoleDot = ({ role }) => {
-  let colorClass = "bg-gray-400";
-  if (role === 'usr') colorClass = "bg-sky-500";
-  if (role === 'adm') colorClass = "bg-orange-500";
-  if (role === 'Sa') colorClass = "bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.6)]";
+  let colorClass = "bg-slate-400";
+  if (role === 'usr') colorClass = "bg-sky-400";
+  if (role === 'adm') colorClass = "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]";
+  if (role === 'enc') colorClass = "bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.8)]";
+  if (role === 'Sa') colorClass = "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]";
 
   return (
     <span 
@@ -52,55 +53,91 @@ const Navbar = () => {
   }, []);
 
   return (
-    <header className={`z-50 w-full bg-white/90 dark:bg-gray-950/90 backdrop-blur-md transition-all duration-300 ${
-      isBottom 
-        ? 'fixed bottom-0 border-t border-gray-200 dark:border-gray-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]' 
-        : 'sticky top-0 border-b border-gray-200 dark:border-gray-800'
-    }`}>
-      <div className="container mx-auto flex h-14 items-center justify-between px-4">
-        
-        {/* IZQUIERDA: Logo compacto */}
-        <div className="flex items-center">
-          <Link to="/" className="flex items-center gap-2 group">
-            <span className="bg-teal-600 text-white w-6 h-6 flex items-center justify-center rounded-md shadow-sm text-sm font-bold group-hover:bg-teal-700 transition-colors">
-              B
-            </span>
-            <span className="text-base font-bold tracking-tight text-gray-800 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-              BaLog
-            </span>
-          </Link>
-        </div>
+    <AnimatePresence mode="wait">
+      <motion.header 
+        key={navbarPosition}
+        initial={{ y: isBottom ? 70 : -70, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: isBottom ? 70 : -70, opacity: 0 }}
+        transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+        className={`z-50 w-full bg-white/85 dark:bg-gray-950/85 backdrop-blur-xl transition-colors duration-300 ${
+          isBottom 
+            ? 'fixed bottom-0 border-t border-gray-200/80 dark:border-gray-800/80 shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.1)]' 
+            : 'sticky top-0 border-b border-gray-200/80 dark:border-gray-800/80 shadow-sm'
+        }`}
+      >
+        <div className="container mx-auto flex h-14 items-center justify-between px-4">
+          
+          {/* IZQUIERDA: Logo compacto Neusit */}
+          <div className="flex items-center">
+            <Link to="/" className="flex items-center gap-2.5 group">
+              <span className="bg-gradient-to-br from-teal-500 to-emerald-600 text-white w-7 h-7 flex items-center justify-center rounded-lg shadow-sm shadow-teal-500/30 text-sm font-black tracking-tight group-hover:scale-105 transition-transform">
+                N
+              </span>
+              <span className="text-base font-black tracking-tight text-gray-800 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                Neusit
+              </span>
+            </Link>
+          </div>
 
-        {/* DERECHA: User Menu & Controls */}
-        <div className="flex items-center gap-3">
-           
-           {/* Position Toggle */}
-           <button
+          {/* DERECHA: Controles y Menú */}
+          <div className="flex items-center gap-2.5">
+            
+            {/* Botón Mover Barra (Arriba / Abajo) con animación suave */}
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
               onClick={toggleNavbarPosition}
-              className="hidden sm:flex p-1.5 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              title={isBottom ? "Mover Arriba" : "Mover Abajo"}
+              className="hidden sm:flex p-2 rounded-xl text-gray-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors"
+              title={isBottom ? "Mover barra arriba" : "Mover barra abajo"}
             >
-              {isBottom ? <Icons.ArrowUp /> : <Icons.ArrowDown />}
-            </button>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={isBottom ? 'up' : 'down'}
+                  initial={{ rotate: -90, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: 90, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {isBottom ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                </motion.div>
+              </AnimatePresence>
+            </motion.button>
 
-           {/* Theme Toggle */}
-           <button
+            {/* Botón Tema Oscuro / Claro con giro y escala */}
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.9 }}
               onClick={toggleTheme}
-              className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
-              title="Cambiar Tema"
+              className="p-2 rounded-xl text-gray-500 hover:text-teal-600 dark:text-gray-400 dark:hover:text-teal-400 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors"
+              title={theme === 'dark' ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             >
-              {theme === 'dark' ? <Icons.Sun /> : <Icons.Moon />}
-            </button>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={theme}
+                  initial={{ y: -8, opacity: 0, rotate: -45 }}
+                  animate={{ y: 0, opacity: 1, rotate: 0 }}
+                  exit={{ y: 8, opacity: 0, rotate: 45 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-teal-600" />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </motion.button>
 
-           {user ? (
-             <div className="relative" ref={dropdownRef}>
-               {/* USER CONTAINER (Bordered Pill) */}
-               <button 
-                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                 className="flex items-center gap-2 pl-1 pr-2 py-1 border border-gray-200 dark:border-gray-700 rounded-full hover:shadow-sm hover:border-gray-300 dark:hover:border-gray-600 transition-all bg-white dark:bg-gray-900"
-               >
+            {user ? (
+              <div className="relative" ref={dropdownRef}>
+                {/* Botón de usuario en forma de Pill */}
+                <button 
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 border border-gray-200 dark:border-gray-800 rounded-full hover:shadow-sm hover:border-teal-500/40 dark:hover:border-teal-500/40 transition-all bg-white dark:bg-gray-900"
+                >
                   {/* Badge Nombre */}
-                  <div className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                  <div className="px-2.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
                     <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
                       {user.username}
                     </span>
@@ -111,92 +148,97 @@ const Navbar = () => {
                     {user.roles?.map(r => <RoleDot key={r} role={r} />)}
                   </div>
                   
-                  {/* Flecha pequeña indicador */}
-                  <div className={`text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}>
-                    <Icons.ChevronDown />
-                  </div>
-               </button>
+                  {/* Flecha indicadora */}
+                  <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-               {/* DROPDOWN MENU */}
-               {isDropdownOpen && (
-                 <div className={`absolute right-0 w-48 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-xl py-1 animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
-                   isBottom ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
-                 }`}>
-                    
-                    <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800 mb-1 flex justify-between items-center">
-                      <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Menú</p>
-                      
-                      {/* Mobile Position Toggle (Inside Menu) */}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); toggleNavbarPosition(); setIsDropdownOpen(false); }}
-                        className="sm:hidden text-gray-400 hover:text-teal-600"
-                      >
-                        {isBottom ? <Icons.ArrowUp /> : <Icons.ArrowDown />}
-                      </button>
-                    </div>
-
-                    <Link 
-                      to="/profile" 
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
+                {/* Dropdown flotante animado */}
+                <AnimatePresence>
+                  {isDropdownOpen && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95, y: isBottom ? 10 : -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: isBottom ? 10 : -10 }}
+                      transition={{ duration: 0.18 }}
+                      className={`absolute right-0 w-52 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200/80 dark:border-gray-800/80 rounded-2xl shadow-2xl py-1.5 overflow-hidden z-50 ${
+                        isBottom ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
+                      }`}
                     >
-                      <Icons.Profile /> Mi Perfil
-                    </Link>
+                      <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800 mb-1 flex justify-between items-center">
+                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Menú Neusit</p>
+                        
+                        {/* Mobile Position Toggle */}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); toggleNavbarPosition(); setIsDropdownOpen(false); }}
+                          className="sm:hidden p-1 text-gray-400 hover:text-teal-600 rounded-md"
+                        >
+                          {isBottom ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
 
-                    <Link 
-                      to="/" 
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
-                    >
-                      <Icons.Monitor /> Estado Monitor
-                    </Link>
-
-                    {(user.roles?.includes('adm') || user.roles?.includes('Sa')) && (
-                       <Link 
-                         to="/users" 
-                         onClick={() => setIsDropdownOpen(false)}
-                         className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
-                       >
-                         <Icons.Users /> Usuarios
-                       </Link>
-                    )}
-
-                    {user.roles?.includes('Sa') && (
-                       <Link 
-                         to="/groups" 
-                         onClick={() => setIsDropdownOpen(false)}
-                         className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
-                       >
-                         <Icons.Groups /> Grupos
-                       </Link>
-                    )}
-
-                    <div className="my-1 border-t border-gray-100 dark:border-gray-800"></div>
-
-                    <div className="px-4 py-2">
-                      <button 
-                        onClick={() => { logout(); setIsDropdownOpen(false); }}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm transition-colors"
+                      <Link 
+                        to="/profile" 
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
                       >
-                        <Icons.Logout /> Salir
-                      </button>
-                    </div>
-                 </div>
-               )}
-             </div>
-           ) : (
-             // No Logueado
-             <div className="pl-2">
+                        <User className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Mi Perfil
+                      </Link>
+
+                      <Link 
+                        to="/" 
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
+                      >
+                        <Activity className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Monitor en Vivo
+                      </Link>
+
+                      {(user.roles?.includes('adm') || user.roles?.includes('Sa')) && (
+                        <Link 
+                          to="/users" 
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
+                        >
+                          <Users className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Usuarios
+                        </Link>
+                      )}
+
+                      {user.roles?.includes('Sa') && (
+                        <Link 
+                          to="/groups" 
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
+                        >
+                          <Layers className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Grupos
+                        </Link>
+                      )}
+
+                      <div className="my-1.5 border-t border-gray-100 dark:border-gray-800"></div>
+
+                      <div className="px-3 py-1">
+                        <button 
+                          onClick={() => { logout(); setIsDropdownOpen(false); }}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-colors"
+                        >
+                          <LogOut className="w-3.5 h-3.5" /> Salir
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <div className="pl-1">
                 <Link to="/login">
-                  <Button variant="ghost" size="sm" className="font-semibold text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20">
+                  <Button variant="ghost" size="sm" className="font-bold text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20">
                     Acceder
                   </Button>
                 </Link>
-             </div>
-           )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </motion.header>
+    </AnimatePresence>
   );
 };
 

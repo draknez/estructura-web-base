@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "tailwindcss-motion";
 
 /* Fuente Inter (Simulada localmente para este entorno) */
 @font-face {
@@ -28,24 +29,27 @@
   
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   
   body {
     @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+    transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
-/* Scrollbar personalizada Teal */
+/* Scrollbar personalizada suave */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-teal-200 dark:bg-teal-900 rounded-full;
+  background-color: rgba(20, 184, 166, 0.25);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-teal-300 dark:bg-teal-800;
+  background-color: rgba(20, 184, 166, 0.5);
 }
