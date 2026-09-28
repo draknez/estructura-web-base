@@ -12,6 +12,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({ username: false, password: false });
   const { user, login } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -20,8 +21,15 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username.trim() || !password) {
-      return addToast("Completa todos los campos", "error");
+    const hasUserError = !username.trim();
+    const hasPassError = !password;
+
+    if (hasUserError || hasPassError) {
+      setErrors({
+        username: hasUserError,
+        password: hasPassError
+      });
+      return;
     }
 
     setLoading(true);
@@ -32,7 +40,8 @@ const LoginPage = () => {
       addToast(`Bienvenido a Neusit, ${username.trim()}`, "success");
       navigate('/profile');
     } else {
-      addToast(result.error, "error");
+      // Activar aviso sutil en los inputs sin texto
+      setErrors({ username: true, password: true });
     }
   };
 
@@ -47,7 +56,7 @@ const LoginPage = () => {
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-sm"
       >
-        <div className="relative rounded-[2rem] border border-gray-200/80 dark:border-gray-800/90 bg-white/85 dark:bg-gray-950/80 backdrop-blur-xl shadow-2xl shadow-gray-200/50 dark:shadow-teal-950/20 overflow-hidden">
+        <div className="relative rounded-[2rem] bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] overflow-hidden">
           
           {/* Header & Identidad de Marca Neusit */}
           <div className="pt-9 pb-4 px-8 text-center flex flex-col items-center">
@@ -74,9 +83,12 @@ const LoginPage = () => {
               icon={User}
               placeholder="Tu nombre de usuario"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              error={errors.username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                if (errors.username) setErrors(prev => ({ ...prev, username: false }));
+              }}
               autoComplete="username"
-              required
             />
 
             <Input
@@ -85,9 +97,12 @@ const LoginPage = () => {
               icon={Lock}
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              error={errors.password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password) setErrors(prev => ({ ...prev, password: false }));
+              }}
               autoComplete="current-password"
-              required
               rightElement={
                 <button
                   type="button"
@@ -137,7 +152,7 @@ const LoginPage = () => {
               </Link>
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400 dark:text-gray-500 pt-3 border-t border-gray-100 dark:border-gray-900">
+            <div className="flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400 dark:text-gray-500 pt-4">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-500" />
               <span>Conexión segura & cifrada</span>
             </div>

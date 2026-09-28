@@ -29,12 +29,12 @@ const Modal = ({ isOpen, onClose, title, children, className }) => {
       
       {/* Card Animada */}
       <div className={cn(
-        "relative bg-white dark:bg-gray-950 rounded-[2rem] shadow-2xl border border-gray-100 dark:border-gray-900 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200",
+        "relative bg-white dark:bg-gray-900 rounded-[2rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200",
         className
       )}>
         {/* Header */}
         {(title || onClose) && (
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-900 flex items-center justify-between shrink-0 bg-gray-50/50 dark:bg-gray-900/50">
+          <div className="px-6 py-4 flex items-center justify-between shrink-0 bg-gray-50/80 dark:bg-gray-800/40 shadow-sm">
             {title && (
               <h3 className="text-lg font-black text-gray-900 dark:text-white tracking-tight">
                 {title}

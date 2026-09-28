@@ -41,7 +41,7 @@ const HomePage = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {users.map((u) => (
-            <Card key={u.id} className="p-4 flex items-center justify-between group hover:border-teal-500/30 transition-all duration-300">
+            <Card key={u.id} className="p-4 flex items-center justify-between group hover:shadow-lg hover:shadow-teal-500/5 dark:hover:shadow-black/60 hover:-translate-y-0.5 transition-all duration-300">
               <div className="flex items-center gap-3">
                 {/* Avatar */}
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-white shadow-md transition-colors ${u.online ? 'bg-teal-600' : 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600'}`}>

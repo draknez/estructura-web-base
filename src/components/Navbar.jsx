@@ -60,10 +60,10 @@ const Navbar = () => {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: isBottom ? 70 : -70, opacity: 0 }}
         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-        className={`z-50 w-full bg-white/85 dark:bg-gray-950/85 backdrop-blur-xl transition-colors duration-300 ${
+        className={`fixed left-0 right-0 z-50 w-full bg-white/85 dark:bg-gray-950/85 backdrop-blur-xl transition-colors duration-300 ${
           isBottom 
-            ? 'fixed bottom-0 border-t border-gray-200/80 dark:border-gray-800/80 shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.1)]' 
-            : 'sticky top-0 border-b border-gray-200/80 dark:border-gray-800/80 shadow-sm'
+            ? 'bottom-0 shadow-[0_-4px_25px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_25px_-4px_rgba(0,0,0,0.5)]' 
+            : 'top-0 shadow-[0_4px_25px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_25px_-4px_rgba(0,0,0,0.5)]'
         }`}
       >
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
@@ -83,25 +83,50 @@ const Navbar = () => {
           {/* DERECHA: Controles y Menú */}
           <div className="flex items-center gap-2.5">
             
-            {/* Botón Mover Barra (Arriba / Abajo) con animación suave */}
+            {/* Botón Mover Barra (Arriba / Abajo) con coreografía de 3 giros y entrada escalonada */}
             <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.88 }}
               onClick={toggleNavbarPosition}
               className="hidden sm:flex p-2 rounded-xl text-gray-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors"
               title={isBottom ? "Mover barra arriba" : "Mover barra abajo"}
             >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={isBottom ? 'up' : 'down'}
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: 90, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {isBottom ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-                </motion.div>
-              </AnimatePresence>
+              <motion.div
+                key={navbarPosition}
+                initial={{ 
+                  opacity: 0, 
+                  scale: 0.2, 
+                  y: isBottom ? -22 : 22, 
+                  rotate: isBottom ? 0 : 1080 
+                }}
+                animate={{ 
+                  opacity: 1, 
+                  scale: 1, 
+                  y: 0, 
+                  rotate: isBottom ? 1080 : 0 
+                }}
+                exit={{ 
+                  opacity: 0, 
+                  scale: 0.2, 
+                  rotate: isBottom ? 0 : 1080 
+                }}
+                whileHover={{ 
+                  scale: 1.25, 
+                  y: isBottom ? 3 : -3,
+                  transition: { type: "spring", stiffness: 450, damping: 15 } 
+                }}
+                transition={{ 
+                  delay: 0.28, 
+                  duration: 0.65, 
+                  ease: [0.16, 1, 0.3, 1] 
+                }}
+              >
+                {isBottom ? (
+                  <ArrowDown className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                ) : (
+                  <ArrowUp className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                )}
+              </motion.div>
             </motion.button>
 
             {/* Botón Tema Oscuro / Claro con giro y escala */}
@@ -134,7 +159,7 @@ const Navbar = () => {
                 {/* Botón de usuario en forma de Pill */}
                 <button 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 border border-gray-200 dark:border-gray-800 rounded-full hover:shadow-sm hover:border-teal-500/40 dark:hover:border-teal-500/40 transition-all bg-white dark:bg-gray-900"
+                  className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full shadow-sm dark:shadow-md dark:shadow-black/40 hover:shadow-md hover:scale-[1.02] transition-all bg-white dark:bg-gray-900"
                 >
                   {/* Badge Nombre */}
                   <div className="px-2.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
@@ -160,11 +185,11 @@ const Navbar = () => {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: isBottom ? 10 : -10 }}
                       transition={{ duration: 0.18 }}
-                      className={`absolute right-0 w-52 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200/80 dark:border-gray-800/80 rounded-2xl shadow-2xl py-1.5 overflow-hidden z-50 ${
+                      className={`absolute right-0 w-52 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl shadow-black/10 dark:shadow-2xl dark:shadow-black/70 py-1.5 overflow-hidden z-50 ${
                         isBottom ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
                       }`}
                     >
-                      <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800 mb-1 flex justify-between items-center">
+                      <div className="px-3 py-2 mb-1 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/40">
                         <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Menú Neusit</p>
                         
                         {/* Mobile Position Toggle */}
@@ -172,7 +197,7 @@ const Navbar = () => {
                           onClick={(e) => { e.stopPropagation(); toggleNavbarPosition(); setIsDropdownOpen(false); }}
                           className="sm:hidden p-1 text-gray-400 hover:text-teal-600 rounded-md"
                         >
-                          {isBottom ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                          {isBottom ? <ArrowDown className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" /> : <ArrowUp className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />}
                         </button>
                       </div>
 
@@ -212,7 +237,7 @@ const Navbar = () => {
                         </Link>
                       )}
 
-                      <div className="my-1.5 border-t border-gray-100 dark:border-gray-800"></div>
+                      <div className="my-1.5 h-px bg-gray-100 dark:bg-gray-800/60 mx-2"></div>
 
                       <div className="px-3 py-1">
                         <button 

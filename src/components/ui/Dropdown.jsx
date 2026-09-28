@@ -20,7 +20,7 @@ const Dropdown = ({ options, value, onChange, placeholder = "Seleccionar...", cl
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 h-10 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all shadow-sm"
+        className="w-full flex items-center justify-between px-3 h-10 bg-white dark:bg-gray-900 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition-all"
       >
         <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
         <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -29,7 +29,7 @@ const Dropdown = ({ options, value, onChange, placeholder = "Seleccionar...", cl
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-xl max-h-60 overflow-auto animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-gray-900 rounded-xl shadow-xl shadow-black/10 dark:shadow-2xl dark:shadow-black/70 max-h-60 overflow-auto animate-in fade-in zoom-in-95 duration-100">
           {options.map((opt) => (
             <button
               key={opt.value}

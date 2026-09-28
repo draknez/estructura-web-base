@@ -10,28 +10,28 @@ const ROLE_CONFIG = {
   Sa: {
     label: 'SuperAdmin',
     shortLabel: 'Sa',
-    color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 shadow-amber-500/10',
+    color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 shadow-sm shadow-amber-500/15 dark:shadow-amber-500/10',
     dotColor: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]',
     icon: ShieldAlert,
   },
   adm: {
     label: 'Admin',
     shortLabel: 'Adm',
-    color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shadow-emerald-500/10',
+    color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shadow-sm shadow-emerald-500/15 dark:shadow-emerald-500/10',
     dotColor: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]',
     icon: ShieldCheck,
   },
   enc: {
     label: 'Encargado',
     shortLabel: 'Enc',
-    color: 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30 shadow-teal-500/10',
+    color: 'bg-teal-500/15 text-teal-700 dark:text-teal-300 shadow-sm shadow-teal-500/15 dark:shadow-teal-500/10',
     dotColor: 'bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]',
     icon: UserCheck,
   },
   usr: {
     label: 'Usuario',
     shortLabel: 'Usr',
-    color: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-300/60 dark:border-slate-700/80 shadow-slate-500/5',
+    color: 'bg-slate-500/15 text-slate-700 dark:text-slate-300 shadow-sm shadow-slate-500/10 dark:shadow-black/20',
     dotColor: 'bg-slate-400',
     icon: User,
   }
@@ -41,7 +41,7 @@ const RoleBadge = ({ role, short = false, showDot = true, showIcon = false, size
   const config = ROLE_CONFIG[role] || {
     label: role,
     shortLabel: role,
-    color: 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700',
+    color: 'bg-gray-500/15 text-gray-700 dark:text-gray-300 shadow-sm',
     dotColor: 'bg-gray-400',
     icon: User,
   };
@@ -58,7 +58,7 @@ const RoleBadge = ({ role, short = false, showDot = true, showIcon = false, size
   return (
     <span 
       className={cn(
-        "inline-flex items-center font-bold tracking-tight rounded-full border backdrop-blur-sm select-none shadow-sm transition-all",
+        "inline-flex items-center font-bold tracking-tight rounded-full backdrop-blur-sm select-none transition-all",
         sizeClasses,
         config.color,
         className

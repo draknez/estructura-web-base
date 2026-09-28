@@ -9,10 +9,10 @@ const ToastContainer = ({ toasts, removeToast }) => {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`pointer-events-auto flex items-center p-4 rounded-xl shadow-lg border animate-in slide-in-from-right-full duration-300 ${
-            toast.type === 'success' ? 'bg-white dark:bg-gray-900 border-teal-500/20 text-teal-700 dark:text-teal-400' :
-            toast.type === 'error' ? 'bg-white dark:bg-gray-900 border-red-500/20 text-red-700 dark:text-red-400' :
-            'bg-white dark:bg-gray-900 border-gray-200 text-gray-700'
+          className={`pointer-events-auto flex items-center p-4 rounded-xl animate-in slide-in-from-right-full duration-300 ${
+            toast.type === 'success' ? 'bg-white dark:bg-gray-900 text-teal-700 dark:text-teal-400 shadow-xl shadow-teal-500/10 dark:shadow-2xl dark:shadow-black/70' :
+            toast.type === 'error' ? 'bg-white dark:bg-gray-900 text-red-700 dark:text-red-400 shadow-xl shadow-red-500/10 dark:shadow-2xl dark:shadow-black/70' :
+            'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 shadow-xl shadow-black/5 dark:shadow-2xl dark:shadow-black/70'
           }`}
         >
           <div className={`mr-3 shrink-0 ${toast.type === 'success' ? 'text-teal-500' : 'text-red-500'}`}>

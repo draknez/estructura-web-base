@@ -48,7 +48,7 @@ const TableDiv = ({
         label: (
           <input 
             type="checkbox" 
-            className="rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+            className="rounded border-0 shadow-sm text-teal-600 focus:ring-teal-500 cursor-pointer bg-gray-100 dark:bg-gray-800"
             checked={isAllSelected}
             ref={input => { if (input) input.indeterminate = isIndeterminate; }}
             onChange={(e) => selection.onSelectAll(e.target.checked)}
@@ -57,7 +57,7 @@ const TableDiv = ({
         render: (row) => (
           <input 
             type="checkbox" 
-            className="rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+            className="rounded border-0 shadow-sm text-teal-600 focus:ring-teal-500 cursor-pointer bg-gray-100 dark:bg-gray-800"
             checked={selection.selectedIds.has(row[keyField])}
             onChange={(e) => { e.stopPropagation(); selection.onSelectOne(row[keyField]); }}
           />
@@ -111,13 +111,13 @@ const TableDiv = ({
   // --- 4. Renderizado Principal ---
   if (!loading && (!displayData || displayData.length === 0)) {
     return (
-      <div className="text-center p-12 bg-white dark:bg-gray-900 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 shadow-sm">
+      <div className="text-center p-12 bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:shadow-md dark:shadow-black/30">
         <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">{emptyMessage}</p>
       </div>
     );
   }
 
-  const rowBaseClass = "flex border-b border-gray-50 dark:border-gray-800/50 transition-colors duration-200 items-center last:border-none";
+  const rowBaseClass = "flex transition-colors duration-200 items-center";
   const cellBaseClass = "py-4 px-4 flex items-center shrink-0 text-sm";
   const headerBaseClass = "bg-gray-50/50 dark:bg-gray-900/50 text-gray-400 dark:text-gray-500 font-black text-[10px] uppercase tracking-[0.15em] py-3 px-4 flex items-center shrink-0 backdrop-blur-sm";
 
@@ -163,7 +163,7 @@ const TableDiv = ({
 
   return (
     <div className={`space-y-4 ${className}`}>
-      <div className="relative rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-900">
+      <div className="relative rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-[0_4px_25px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
         
         {loading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm">
@@ -174,7 +174,7 @@ const TableDiv = ({
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800 scrollbar-track-transparent">
           <div className="min-w-full inline-block align-middle">
             {/* HEADER */}
-            <div className="flex border-b border-gray-100 dark:border-gray-800">
+            <div className="flex shadow-[0_2px_8px_rgba(0,0,0,0.03)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] z-10">
               {leftStickyCols.length > 0 && (
                 <div className="sticky left-0 z-20 flex bg-white dark:bg-gray-950 shadow-[2px_0_10px_-2px_rgba(0,0,0,0.1)]">
                   {renderCellGroup(leftStickyCols, null, true)}
@@ -194,8 +194,8 @@ const TableDiv = ({
             {displayData.map((row, idx) => {
               const isDeleting = row._isDeleting;
               const animClass = isDeleting ? 'transition-all duration-300 opacity-0 scale-95 h-0 py-0 border-none' : 'opacity-100 scale-100';
-              const bgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-              const darkBgClass = idx % 2 === 0 ? 'dark:bg-gray-950' : 'dark:bg-gray-900';
+              const bgClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/70';
+              const darkBgClass = idx % 2 === 0 ? 'dark:bg-gray-950' : 'dark:bg-gray-900/60';
               const hoverClass = onRowClick ? 'cursor-pointer hover:bg-teal-50 dark:hover:bg-teal-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40';
 
               return (
@@ -229,7 +229,7 @@ const TableDiv = ({
         <div className="flex flex-col sm:flex-row justify-center items-center gap-6 select-none">
           <div className="flex items-center gap-2">
             <button 
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-gray-900 shadow-sm border border-gray-200 dark:border-gray-800 disabled:opacity-30 font-black" 
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-gray-900 shadow-sm dark:shadow-md dark:shadow-black/40 hover:shadow-md disabled:opacity-30 font-black transition-all" 
               onClick={() => pagination.onPageChange(Math.max(pagination.currentPage - 1, 1))} 
               disabled={pagination.currentPage === 1}
             >
@@ -243,10 +243,10 @@ const TableDiv = ({
                   onClick={() => typeof p === 'number' && pagination.onPageChange(p)} 
                   className={`w-10 h-10 flex items-center justify-center rounded-full text-xs font-black transition-all shadow-sm ${
                     p === pagination.currentPage 
-                      ? 'bg-teal-600 text-white scale-110' 
+                      ? 'bg-teal-600 text-white scale-110 shadow-md shadow-teal-500/30' 
                       : p === '...' 
                         ? 'bg-transparent text-gray-400 cursor-default' 
-                        : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-teal-500'
+                        : 'bg-white dark:bg-gray-900 shadow-sm dark:shadow-md dark:shadow-black/40 hover:shadow-md hover:scale-105'
                   }`}
                 >
                   {p}
@@ -254,14 +254,14 @@ const TableDiv = ({
               ))}
             </div>
             <button 
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-gray-900 shadow-sm border border-gray-200 dark:border-gray-800 disabled:opacity-30 font-black" 
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-gray-900 shadow-sm dark:shadow-md dark:shadow-black/40 hover:shadow-md disabled:opacity-30 font-black transition-all" 
               onClick={() => pagination.onPageChange(Math.min(pagination.currentPage + 1, pagination.totalPages))} 
               disabled={pagination.currentPage === pagination.totalPages}
             >
               →
             </button>
           </div>
-          <div className="flex items-center gap-3 bg-white dark:bg-gray-900 px-4 py-2 rounded-full border border-gray-200 dark:border-gray-800 shadow-sm">
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-900 px-4 py-2 rounded-full shadow-sm dark:shadow-md dark:shadow-black/40">
              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ver:</span>
              <Input 
                type="number" 

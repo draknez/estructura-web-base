@@ -1,17 +1,11 @@
 const InfoCard = ({ title, description, type }) => {
-  // Estilo simple basado en el tipo de info
-  const borderColors = {
-    warning: 'orange',
-    info: 'blue',
-    success: 'green'
-  };
 
   const style = {
-    border: `2px solid ${borderColors[type] || 'gray'}`,
-    padding: '15px',
-    borderRadius: '8px',
+    padding: '16px',
+    borderRadius: '16px',
     marginBottom: '10px',
-    maxWidth: '300px'
+    maxWidth: '300px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.06)'
   };
 
   return (

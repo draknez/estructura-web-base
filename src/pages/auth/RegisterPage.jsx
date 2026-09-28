@@ -54,7 +54,7 @@ const RegisterPage = () => {
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-sm"
       >
-        <div className="relative rounded-[2rem] border border-gray-200/80 dark:border-gray-800/90 bg-white/85 dark:bg-gray-950/80 backdrop-blur-xl shadow-2xl shadow-gray-200/50 dark:shadow-teal-950/20 overflow-hidden">
+        <div className="relative rounded-[2rem] bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] overflow-hidden">
           
           {/* Header */}
           <div className="pt-9 pb-4 px-8 text-center flex flex-col items-center">
@@ -116,7 +116,7 @@ const RegisterPage = () => {
               <motion.div 
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-xs font-semibold rounded-xl"
+                className="p-3 bg-red-50 dark:bg-red-950/40 shadow-sm shadow-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold rounded-xl"
               >
                 {error}
               </motion.div>
@@ -154,7 +154,7 @@ const RegisterPage = () => {
               </Link>
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400 dark:text-gray-500 pt-3 border-t border-gray-100 dark:border-gray-900">
+            <div className="flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400 dark:text-gray-500 pt-4">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-500" />
               <span>Privacidad y seguridad garantizada</span>
             </div>

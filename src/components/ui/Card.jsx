@@ -2,7 +2,7 @@ import { cn } from "../../utils/cn";
 
 export const Card = ({ children, className }) => (
   <div className={cn(
-    "bg-white dark:bg-gray-950 rounded-[2rem] border border-gray-100 dark:border-gray-900 shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden",
+    "bg-white dark:bg-gray-900/90 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.35)] overflow-hidden",
     className
   )}>
     {children}

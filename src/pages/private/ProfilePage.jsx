@@ -155,7 +155,7 @@ const ProfilePage = () => {
           damping: 22,
         }}
         style={{ transformStyle: "preserve-3d" }}
-        className="relative w-full max-w-lg rounded-[2.5rem] border border-gray-200/80 dark:border-gray-800/80 bg-white/90 dark:bg-gray-950/90 backdrop-blur-2xl shadow-2xl shadow-gray-200/50 dark:shadow-teal-950/25 p-7 sm:p-9 overflow-hidden"
+        className="relative w-full max-w-lg rounded-[2.5rem] bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] p-7 sm:p-9 overflow-hidden"
       >
         {/* Spotlight dinámico que sigue el cursor */}
         <div
@@ -219,15 +219,15 @@ const ProfilePage = () => {
 
           {/* Herramientas SuperAdmin (Acordeón sofisticado) */}
           {isSuperAdmin && (
-            <div className="w-full pt-4 border-t border-gray-100 dark:border-gray-800/80">
+            <div className="w-full pt-4">
               <motion.button
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 onClick={() => setShowAdminTools(!showAdminTools)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border transition-all ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all ${
                   showAdminTools
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
-                    : 'bg-gray-50/80 dark:bg-gray-900/60 border-gray-200/80 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-amber-500/40'
+                    ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 shadow-sm shadow-amber-500/20'
+                    : 'bg-gray-50/80 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 shadow-sm dark:shadow-md dark:shadow-black/30 hover:shadow-md'
                 }`}
               >
                 <span className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider">
@@ -247,7 +247,7 @@ const ProfilePage = () => {
                     className="overflow-hidden space-y-4 pt-4 text-left"
                   >
                     {/* Tool 1: Selector de Estilo de UI */}
-                    <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-gray-900/70 border border-gray-200/80 dark:border-gray-800 space-y-2">
+                    <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-gray-800/50 shadow-sm dark:shadow-md dark:shadow-black/30 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
                           <Layers className="w-3.5 h-3.5 text-teal-600" /> Estilo de UI
@@ -278,7 +278,7 @@ const ProfilePage = () => {
                     </div>
 
                     {/* Tool 2: Seed Engine (Generador de Usuarios Masivos) */}
-                    <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-gray-900/70 border border-gray-200/80 dark:border-gray-800 space-y-3">
+                    <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-gray-800/50 shadow-sm dark:shadow-md dark:shadow-black/30 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-amber-500" /> Generador de Usuarios
@@ -293,10 +293,10 @@ const ProfilePage = () => {
                             key={val}
                             type="button"
                             onClick={() => setSeedCount(val)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${
                               seedCount === val
-                                ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/30'
-                                : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-amber-400'
+                                ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/30'
+                                : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 shadow-sm dark:shadow-md dark:shadow-black/30 hover:shadow-md'
                             }`}
                           >
                             +{val}
@@ -335,7 +335,7 @@ const ProfilePage = () => {
                     </div>
 
                     {/* Tool 3: Zona de Peligro / Reset Crítico */}
-                    <div className="p-4 rounded-2xl bg-red-50/50 dark:bg-red-950/20 border border-red-200/80 dark:border-red-900/40 space-y-3">
+                    <div className="p-4 rounded-2xl bg-red-50/50 dark:bg-red-950/20 shadow-sm shadow-red-500/10 space-y-3">
                       <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-wider">
                         <AlertTriangle className="w-4 h-4" /> Zona de Peligro Crítico
                       </div>
@@ -353,7 +353,7 @@ const ProfilePage = () => {
                         <motion.div
                           initial={{ opacity: 0, y: -6 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="space-y-2 p-3 bg-red-100/70 dark:bg-red-950/50 rounded-xl border border-red-300 dark:border-red-800 text-center"
+                          className="space-y-2 p-3 bg-red-100/70 dark:bg-red-950/50 rounded-xl shadow-sm text-center"
                         >
                           <p className="text-xs font-bold text-red-700 dark:text-red-300">
                             ¿Confirmas eliminar todos los usuarios y reiniciar Neusit?

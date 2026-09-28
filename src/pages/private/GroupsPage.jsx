@@ -192,14 +192,14 @@ const GroupsPage = () => {
         <div className="space-y-4">
           <Input label="Nombre" value={createData.name} onChange={e => setCreateData({...createData, name: e.target.value})} />
           <Input label="Descripción" value={createData.description} onChange={e => setCreateData({...createData, description: e.target.value})} />
-          <div className="flex flex-col gap-1.5"><label className="text-[10px] font-black uppercase text-gray-500 ml-1">Grupo Padre</label><select className="h-10 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 text-xs font-bold outline-none" value={createData.parent_id} onChange={e => setCreateData({...createData, parent_id: e.target.value})}><option value="">NINGUNO (RAÍZ)</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-[10px] font-black uppercase text-gray-500 ml-1">Grupo Padre</label><select className="h-10 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-white dark:bg-gray-900 px-4 text-xs font-bold outline-none" value={createData.parent_id} onChange={e => setCreateData({...createData, parent_id: e.target.value})}><option value="">NINGUNO (RAÍZ)</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
           <div className="flex justify-end gap-2 pt-4"><Button variant="secondary" onClick={() => setIsCreateOpen(false)}>CANCELAR</Button><Button onClick={handleCreateSubmit}>GUARDAR</Button></div>
         </div>
       </Modal>
 
       <Modal isOpen={!!managingGroup} onClose={() => setManagingGroup(null)} title="Administrar" className="max-w-3xl">
         <div className="flex flex-col h-[70vh] md:h-[500px] gap-6">
-          <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 items-end">
+          <div className="bg-gray-50/80 dark:bg-gray-800/40 p-4 rounded-3xl shadow-sm dark:shadow-md dark:shadow-black/20 flex flex-col md:flex-row gap-4 items-end">
              <div className="flex-1 w-full space-y-3">
                 <Input label="Nombre" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
                 <Input label="Descripción" value={editData.description} onChange={e => setEditData({...editData, description: e.target.value})} />
@@ -207,7 +207,7 @@ const GroupsPage = () => {
              <Button onClick={handleUpdateGroup}>GUARDAR</Button>
           </div>
           <div className="flex-1 flex flex-col md:flex-row gap-6 min-h-0 overflow-hidden">
-            <div className="flex-[1.5] flex flex-col min-h-0 border-b md:border-b-0 md:border-r border-gray-100 dark:border-gray-800 pb-4 md:pr-6">
+            <div className="flex-[1.5] flex flex-col min-h-0 pb-4 md:pr-6">
               <h4 className="text-[10px] font-black uppercase text-gray-400 mb-3 tracking-widest">Miembros ({users.filter(u => u.group_id === managingGroup?.id).length})</h4>
               <div className="flex-1 overflow-y-auto space-y-2 pr-2 scrollbar-thin">
                 {users.filter(u => u.group_id === managingGroup?.id).map(u => {
@@ -230,7 +230,7 @@ const GroupsPage = () => {
               <SearchInput value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Buscar..." className="mb-3" />
               <div className="flex-1 overflow-y-auto space-y-2 pr-2 scrollbar-thin">
                 {users.filter(u => u.group_id !== managingGroup?.id && u.username.toLowerCase().includes(memberSearch.toLowerCase())).slice(0, 50).map(u => ( 
-                  <div key={u.id} className="flex items-center justify-between p-2 rounded-2xl border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors shrink-0">
+                  <div key={u.id} className="flex items-center justify-between p-2 rounded-2xl shadow-sm dark:shadow-md dark:shadow-black/20 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors shrink-0">
                     <div className="flex flex-col overflow-hidden"><span className="text-sm font-bold truncate">{u.username}</span><span className="text-[10px] text-gray-400 uppercase font-black">{u.group_id ? 'En otro grupo' : 'Sin grupo'}</span></div>
                     <button onClick={() => handleAssignMember(u.id, managingGroup.id)} className="bg-teal-600 text-white w-6 h-6 rounded-full flex items-center justify-center hover:bg-teal-700 shadow-sm font-black">+</button>
                   </div>
@@ -238,7 +238,7 @@ const GroupsPage = () => {
               </div>
             </div>
           </div>
-          <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-800 mt-2 shrink-0"><Button variant="secondary" onClick={() => setManagingGroup(null)}>CERRAR</Button></div>
+          <div className="flex justify-end pt-4 mt-2 shrink-0"><Button variant="secondary" onClick={() => setManagingGroup(null)}>CERRAR</Button></div>
         </div>
       </Modal>
       <ConfirmDialog isOpen={confirmConfig.isOpen} onClose={() => setConfirmConfig({ ...confirmConfig, isOpen: false })} onConfirm={confirmConfig.onConfirm} title={confirmConfig.title} description={confirmConfig.description} confirmText={confirmConfig.confirmText} variant={confirmConfig.variant} />
