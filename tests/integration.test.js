@@ -207,6 +207,132 @@ describe('HTTP system-reset step-up', () => {
   });
 });
 
+describe('HTTP 2FA backup code audit (T-SEC-2)', () => {
+  let saBackup;
+  let backupCodes;
+  let totpSecret;
+
+  before(async () => {
+    // Estado previo: sa_int existe (genesis Sa, sin 2FA). Habilitamos 2FA sobre
+    // él para capturar los backup codes en claro. NO wipeamos la BD para no
+    // romper "HTTP 2FA flow" (que depende de sa_int sin 2FA). El cleanup del
+    // `after` deja a sa_int otra vez sin 2FA.
+    saBackup = makeClient();
+    await saBackup.post('/api/login', { username: 'sa_int', password: 'StrongP4ss!' });
+
+    const setupRes = await saBackup.post('/api/auth/2fa/setup', {});
+    const { totp } = await import('../server/totp.js');
+    totpSecret = setupRes.body.secret;
+    const enableRes = await saBackup.post('/api/auth/2fa/enable', {
+      code: totp(totpSecret),
+    });
+    assert.equal(enableRes.status, 200);
+    backupCodes = enableRes.body.backup_codes;
+    assert.equal(backupCodes.length, 10);
+  });
+
+  after(async () => {
+    // Cleanup: devolver sa_int al estado pre-2FA. login → TOTP verify → disable.
+    // Necesario para que el describe "HTTP 2FA flow" pueda usar sa_int sin 2FA.
+    const cleanup = makeClient();
+    const login = await cleanup.post('/api/login', { username: 'sa_int', password: 'StrongP4ss!' });
+    assert.equal(login.body.requires_2fa, true);
+    const { totp } = await import('../server/totp.js');
+    const verify = await cleanup.post('/api/auth/2fa/verify', {
+      temp_token: login.body.temp_token,
+      code: totp(totpSecret),
+    });
+    assert.equal(verify.status, 200);
+    const disable = await cleanup.post('/api/auth/2fa/disable', {
+      password: 'StrongP4ss!',
+      code: totp(totpSecret),
+    });
+    assert.equal(disable.status, 200);
+  });
+
+  it('Consume 1 backup code → audit backup_code.consumed con remaining=9', async () => {
+    const c = makeClient();
+    const login = await c.post('/api/login', { username: 'sa_int', password: 'StrongP4ss!' });
+    assert.equal(login.body.requires_2fa, true);
+
+    const codeToUse = backupCodes[0];
+    const r = await c.post('/api/auth/2fa/verify', {
+      temp_token: login.body.temp_token,
+      code: codeToUse,
+    });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.user);
+    assert.equal(r.body.user.username, 'sa_int');
+
+    const auditRes = await saBackup.get('/api/admin/audit-log');
+    assert.equal(auditRes.status, 200);
+    const consumedEvents = auditRes.body.filter((e) => e.action === 'backup_code.consumed');
+    assert.ok(consumedEvents.length >= 1, 'debe existir al menos un backup_code.consumed');
+    const lastConsumed = consumedEvents[0]; // DESC por id, newest first
+    assert.equal(lastConsumed.meta.remaining, 9);
+    assert.match(lastConsumed.meta.code_hash_prefix, /^[a-f0-9]{8}$/);
+    assert.ok(lastConsumed.target, 'target debe estar presente');
+  });
+
+  it('Reuso de backup code ya consumido → 401 + audit backup_code.consume_failed', async () => {
+    const c = makeClient();
+    const login = await c.post('/api/login', { username: 'sa_int', password: 'StrongP4ss!' });
+    assert.equal(login.body.requires_2fa, true);
+
+    const reusedCode = backupCodes[0]; // ya consumido en el test anterior
+    const r = await c.post('/api/auth/2fa/verify', {
+      temp_token: login.body.temp_token,
+      code: reusedCode,
+    });
+    assert.equal(r.status, 401);
+
+    const auditRes = await saBackup.get('/api/admin/audit-log');
+    assert.equal(auditRes.status, 200);
+    const failedEvents = auditRes.body.filter((e) => e.action === 'backup_code.consume_failed');
+    assert.ok(failedEvents.length >= 1, 'debe existir al menos un backup_code.consume_failed');
+    const lastFailed = failedEvents[0];
+    assert.equal(lastFailed.meta.reason, 'no_match_or_already_used');
+    assert.match(lastFailed.meta.code_hash_prefix, /^[a-f0-9]{8}$/);
+  });
+
+  it('Backup code inexistente (formato válido) → 401 + consume_failed', async () => {
+    const c = makeClient();
+    const login = await c.post('/api/login', { username: 'sa_int', password: 'StrongP4ss!' });
+    assert.equal(login.body.requires_2fa, true);
+
+    // Nunca fue generado — hash no matcheará ninguna fila
+    const fakeCode = 'ZZZZZ-AAAAA';
+    const r = await c.post('/api/auth/2fa/verify', {
+      temp_token: login.body.temp_token,
+      code: fakeCode,
+    });
+    assert.equal(r.status, 401);
+
+    const auditRes = await saBackup.get('/api/admin/audit-log');
+    const failedEvents = auditRes.body.filter((e) => e.action === 'backup_code.consume_failed');
+    assert.ok(failedEvents.length >= 2, 'se acumulan consume_failed (reuso + fake)');
+  });
+
+  it('TOTP code incorrecto sigue emitiendo user.2fa_verify_failed (no backup_code.*)', async () => {
+    const c = makeClient();
+    const login = await c.post('/api/login', { username: 'sa_int', password: 'StrongP4ss!' });
+    assert.equal(login.body.requires_2fa, true);
+
+    const beforeCount = (await saBackup.get('/api/admin/audit-log'))
+      .body.filter((e) => e.action === 'user.2fa_verify_failed').length;
+
+    const r = await c.post('/api/auth/2fa/verify', {
+      temp_token: login.body.temp_token,
+      code: '000000',
+    });
+    assert.equal(r.status, 401);
+
+    const afterCount = (await saBackup.get('/api/admin/audit-log'))
+      .body.filter((e) => e.action === 'user.2fa_verify_failed').length;
+    assert.equal(afterCount, beforeCount + 1, 'solo se emite user.2fa_verify_failed, no backup_code.consume_failed');
+  });
+});
+
 describe('HTTP 2FA flow', () => {
   let sa2fa;
 

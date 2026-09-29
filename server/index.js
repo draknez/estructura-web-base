@@ -670,12 +670,15 @@ app.post('/api/auth/2fa/enable', apiLimiter, enable2FALimiter, verifyToken, veri
       return res.status(401).json({ error: 'Código inválido.' });
     }
 
-    // Habilitar y generar backup codes (mostrados una sola vez)
+    // Habilitar y generar backup codes (mostrados una sola vez).
+    // IMPORTANTE: token_version++ invalida cualquier OTRA sesión activa de
+    // este usuario (cookies robadas, dispositivos viejos). Re-emitimos un JWT
+    // fresco para la sesión actual a continuación.
     const backupCodes = generateBackupCodes(10);
-    db.run('UPDATE users SET totp_enabled = 1, totp_enabled_at = ? WHERE id = ?', [
-      Date.now(),
-      req.userId,
-    ]);
+    db.run(
+      'UPDATE users SET totp_enabled = 1, totp_enabled_at = ?, token_version = token_version + 1 WHERE id = ?',
+      [Date.now(), req.userId]
+    );
     for (const code of backupCodes) {
       db.run('INSERT INTO backup_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)', [
         req.userId,
@@ -685,7 +688,24 @@ app.post('/api/auth/2fa/enable', apiLimiter, enable2FALimiter, verifyToken, veri
     }
     saveDB();
 
-    audit(req.userId, 'user.2fa_enabled', req.userId, { backup_codes_generated: backupCodes.length });
+    // Re-issue cookie para esta sesión (la tv ya está bumped en BD).
+    const tvStmt = db.prepare('SELECT token_version FROM users WHERE id = ?');
+    tvStmt.bind([req.userId]);
+    tvStmt.step();
+    const newTv = tvStmt.getAsObject().token_version;
+    tvStmt.free();
+    const roles = getRolesForUser(req.userId);
+    const newToken = jwt.sign(
+      { id: req.userId, username: req.username, roles, tv: newTv },
+      SECRET_KEY,
+      { expiresIn: '24h' }
+    );
+    setTokenCookie(res, newToken);
+
+    audit(req.userId, 'user.2fa_enabled', req.userId, {
+      backup_codes_generated: backupCodes.length,
+      sessions_revoked: true,
+    });
 
     res.json({
       success: true,
@@ -724,12 +744,15 @@ app.post('/api/auth/2fa/verify', apiLimiter, verify2FALimiter, verifyTemp2FAToke
     }
 
     let verified = false;
+    let backupAttempted = false;
 
     // Aceptar código TOTP o backup code
     if (/^\d{6}$/.test(code)) {
       verified = verifyTotp(user.totp_secret, code);
     } else if (/^[A-Z0-9]{5}-[A-Z0-9]{5}$/i.test(code)) {
+      backupAttempted = true;
       const hashed = hashBackupCode(code);
+      const codeHashPrefix = hashed.slice(0, 8);
       const bcStmt = db.prepare(
         'SELECT id FROM backup_codes WHERE user_id = ? AND code_hash = ? AND used_at IS NULL LIMIT 1'
       );
@@ -738,14 +761,39 @@ app.post('/api/auth/2fa/verify', apiLimiter, verify2FALimiter, verifyTemp2FAToke
         const bcId = bcStmt.getAsObject().id;
         bcStmt.free();
         db.run('UPDATE backup_codes SET used_at = ? WHERE id = ?', [Date.now(), bcId]);
+
+        // Contar restantes tras el consumo (forense: cuántos backup codes quedan
+        // disponibles para este usuario AHORA).
+        const remStmt = db.prepare(
+          'SELECT COUNT(*) as c FROM backup_codes WHERE user_id = ? AND used_at IS NULL'
+        );
+        remStmt.bind([user.id]);
+        remStmt.step();
+        const remaining = remStmt.getAsObject().c;
+        remStmt.free();
+
+        audit(user.id, 'backup_code.consumed', user.id, {
+          code_hash_prefix: codeHashPrefix,
+          remaining,
+          ip: req.ip,
+        });
         verified = true;
       } else {
         bcStmt.free();
+        // Formato backup pero ningún code_hash coincide (o ya consumido).
+        audit(user.id, 'backup_code.consume_failed', user.id, {
+          code_hash_prefix: codeHashPrefix,
+          reason: 'no_match_or_already_used',
+          ip: req.ip,
+        });
       }
     }
 
     if (!verified) {
-      audit(user.id, 'user.2fa_verify_failed', user.id, { ip: req.ip });
+      audit(user.id, 'user.2fa_verify_failed', user.id, {
+        ip: req.ip,
+        ...(backupAttempted ? { backup_attempted: true } : {}),
+      });
       return res.status(401).json({ error: 'Código inválido.' });
     }
 
@@ -802,13 +850,29 @@ app.post('/api/auth/2fa/disable', apiLimiter, verifyToken, verifySuperAdmin, (re
       return res.status(401).json({ error: 'Código 2FA inválido.' });
     }
 
-    db.run('UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_enabled_at = NULL WHERE id = ?', [
-      req.userId,
-    ]);
+    // Bump token_version: deshabilitar 2FA reduce la postura de seguridad, así
+    // que cualquier sesión previa queda revocada. Re-emitimos cookie para esta.
+    db.run(
+      'UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_enabled_at = NULL, token_version = token_version + 1 WHERE id = ?',
+      [req.userId]
+    );
     db.run('DELETE FROM backup_codes WHERE user_id = ?', [req.userId]);
     saveDB();
 
-    audit(req.userId, 'user.2fa_disabled', req.userId, {});
+    const tvStmt = db.prepare('SELECT token_version FROM users WHERE id = ?');
+    tvStmt.bind([req.userId]);
+    tvStmt.step();
+    const newTv = tvStmt.getAsObject().token_version;
+    tvStmt.free();
+    const roles = getRolesForUser(req.userId);
+    const newToken = jwt.sign(
+      { id: req.userId, username: req.username, roles, tv: newTv },
+      SECRET_KEY,
+      { expiresIn: '24h' }
+    );
+    setTokenCookie(res, newToken);
+
+    audit(req.userId, 'user.2fa_disabled', req.userId, { sessions_revoked: true });
 
     res.json({ success: true });
   } catch (err) {

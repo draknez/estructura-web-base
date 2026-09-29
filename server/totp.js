@@ -64,12 +64,19 @@ export function totp(secret, time = Date.now()) {
   return hotp(base32ToBytes(secret), counter);
 }
 
+function constantTimeEqualStr(a, b) {
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
 export function verifyTotp(secret, code, { window = 1, time = Date.now() } = {}) {
-  if (!/^\d{6}$/.test(String(code))) return false;
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return false;
   const counter = Math.floor(time / 1000 / PERIOD);
   const bytes = base32ToBytes(secret);
   for (let w = -window; w <= window; w++) {
-    if (hotp(bytes, counter + w) === code) return true;
+    if (constantTimeEqualStr(hotp(bytes, counter + w), code)) return true;
   }
   return false;
 }
