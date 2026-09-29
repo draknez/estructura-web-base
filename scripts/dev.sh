@@ -1,5 +1,5 @@
 #!/bin/bash
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 echo "🚀 Arrancando App con AUTO-RELOAD..."
 echo "📡 Backend: http://localhost:3000 (Watch Mode ON)"
