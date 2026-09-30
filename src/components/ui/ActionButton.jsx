@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { cn } from '../../utils/cn';
 
 /**
@@ -16,7 +17,7 @@ const ActionButton = ({
   title
 }) => {
   
-  const baseStyles = "px-3 h-5 flex items-center justify-center rounded-full text-[9px] font-black uppercase transition-all shadow-sm disabled:opacity-50 whitespace-nowrap focus:outline-none focus:ring-1 focus:ring-offset-1 tracking-wider hover:-translate-y-px";
+  const baseStyles = "px-3 h-5 flex items-center justify-center rounded-full text-[9px] font-black uppercase transition-all shadow-sm disabled:opacity-50 whitespace-nowrap focus:outline-none focus:ring-1 focus:ring-offset-1 tracking-wider";
   
   const variants = {
     // Edit / Info
@@ -40,14 +41,17 @@ const ActionButton = ({
   };
 
   return (
-    <button
+    <motion.button
+      whileHover={disabled ? undefined : { scale: 1.06 }}
+      whileTap={disabled ? undefined : { scale: 0.92 }}
+      transition={{ type: "spring", stiffness: 450, damping: 18 }}
       onClick={onClick}
       disabled={disabled}
       title={title}
       className={cn(baseStyles, variants[variant] || variants.sky, className)}
     >
       {children}
-    </button>
+    </motion.button>
   );
 };
 

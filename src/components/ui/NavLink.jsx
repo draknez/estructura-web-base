@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { cn } from '../../utils/cn';
 
 /**
@@ -10,16 +11,23 @@ const NavLink = ({ to, children, className }) => {
   const isActive = location.pathname === to;
   
   return (
-    <Link 
-      to={to} 
-      className={cn(
-        "text-sm font-medium transition-colors hover:text-teal-600 dark:hover:text-teal-400",
-        isActive ? "text-teal-600 dark:text-teal-400 font-bold" : "text-gray-500 dark:text-gray-400",
-        className
-      )}
+    <motion.div
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      transition={{ type: "spring", stiffness: 400, damping: 20 }}
+      className="inline-block"
     >
-      {children}
-    </Link>
+      <Link 
+        to={to} 
+        className={cn(
+          "text-sm font-medium transition-colors hover:text-teal-600 dark:hover:text-teal-400",
+          isActive ? "text-teal-600 dark:text-teal-400 font-bold" : "text-gray-500 dark:text-gray-400",
+          className
+        )}
+      >
+        {children}
+      </Link>
+    </motion.div>
   );
 };
 

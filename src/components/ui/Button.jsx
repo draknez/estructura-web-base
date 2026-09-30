@@ -28,9 +28,9 @@ const buttonVariants = cva(
 const Button = ({ className, variant, size, children, disabled, ...props }) => {
   return (
     <motion.button
-      whileHover={disabled ? undefined : { scale: 1.01 }}
-      whileTap={disabled ? undefined : { scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 400, damping: 20 }}
+      whileHover={disabled ? undefined : { scale: 1.02 }}
+      whileTap={disabled ? undefined : { scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 400, damping: 17 }}
       className={cn(buttonVariants({ variant, size }), className)}
       disabled={disabled}
       {...props}

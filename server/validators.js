@@ -26,8 +26,7 @@ export const Validators = {
   
     /**
      * Valida contraseña
-     * Regla actual: Mínimo 6 caracteres.
-     * Futuro: Se puede descomentar la regex compleja para exigir Mayúsculas/Números.
+     * Regla: Mínimo 6 caracteres.
      */
     password: (text) => {
       if (!text) return "La contraseña es requerida.";
@@ -36,10 +35,6 @@ export const Validators = {
         return "La contraseña debe tener al menos 6 caracteres.";
       }
       
-      // Opcional: Regex fuerte (Mínimo 8, 1 letra, 1 número)
-      // const strongRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
-      // if (!strongRegex.test(text)) return "La contraseña es muy débil (requiere letras y números).";
-  
       return true;
     },
   

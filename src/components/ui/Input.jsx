@@ -19,13 +19,15 @@ const Input = forwardRef(({ label, error, icon: Icon, rightElement, className, t
           {label}
         </label>
       )}
-      <div className="relative flex items-center">
+      <div className="relative flex items-center group">
         {Icon && (
           <div className={cn(
-            "absolute left-3.5 pointer-events-none flex items-center justify-center transition-colors duration-200",
-            hasError ? "text-red-500/80 dark:text-red-400/80" : "text-gray-400 dark:text-gray-500"
+            "absolute left-3.5 pointer-events-none flex items-center justify-center transition-all duration-200",
+            hasError 
+              ? "text-red-500/80 dark:text-red-400/80" 
+              : "text-gray-400 dark:text-gray-500 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400"
           )}>
-            <Icon className="w-4 h-4" />
+            <Icon className="w-4 h-4 transition-transform duration-200 group-focus-within:scale-110" />
           </div>
         )}
         <input
