@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -14,8 +13,7 @@ import Dropdown from '../../components/ui/Dropdown';
 
 const UsersPage = () => {
   const { user, token } = useAuth();
-  const { addToast } = useToast();
-  const { navbarPosition, appStyle } = useTheme(); 
+  const { addToast } = useToast(); 
   
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -208,9 +206,20 @@ const UsersPage = () => {
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div><h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter">Usuarios</h1><p className="text-gray-500 text-sm font-medium uppercase tracking-widest">Gestión de Acceso</p></div>
         <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
-           <div className="w-40">{appStyle === 'modern' ? <Dropdown options={[{ label: 'Todos', value: 'all' }, { label: 'Activos', value: 'active' }, { label: 'Bloqueados', value: 'banned' }]} value={filterStatus} onChange={setFilterStatus} /> : <select className="h-10 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] bg-white dark:bg-gray-900 text-xs font-bold focus:ring-2 focus:ring-teal-500/30 px-3 w-full outline-none" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="all">TODOS</option><option value="active">ACTIVOS</option><option value="banned">BLOQUEADOS</option></select>}</div>
-           <div className="flex-1 md:w-64"><SearchInput value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar..." /></div>
-           {appStyle === 'classic' && <Button onClick={openCreateModal}>USUARIO+</Button>}
+           <div className="w-40">
+             <Dropdown 
+               options={[
+                 { label: 'Todos', value: 'all' }, 
+                 { label: 'Activos', value: 'active' }, 
+                 { label: 'Bloqueados', value: 'banned' }
+               ]} 
+               value={filterStatus} 
+               onChange={setFilterStatus} 
+             />
+           </div>
+           <div className="flex-1 md:w-64">
+             <SearchInput value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar..." />
+           </div>
         </div>
       </div>
 
@@ -235,17 +244,17 @@ const UsersPage = () => {
         selection={{ selectedIds, onSelectAll: handleSelectAll, onSelectOne: handleSelectOne }}
       />
 
-      {appStyle === 'modern' && (
-        <motion.button 
-          whileHover={{ scale: 1.1, rotate: 90 }}
-          whileTap={{ scale: 0.9 }}
-          transition={{ type: "spring", stiffness: 400, damping: 20 }}
-          onClick={openCreateModal} 
-          className={`fixed right-6 z-40 bg-teal-600 text-white w-16 h-16 rounded-full shadow-2xl flex items-center justify-center ${navbarPosition === 'bottom' ? 'bottom-20' : 'bottom-6'}`}
-        >
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-        </motion.button>
-      )}
+      <motion.button 
+        whileHover={{ scale: 1.1, rotate: 90 }}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: "spring", stiffness: 400, damping: 20 }}
+        onClick={openCreateModal} 
+        className="fixed right-6 bottom-20 z-40 bg-teal-600 text-white w-16 h-16 rounded-full shadow-2xl flex items-center justify-center"
+        title="Crear Usuario"
+        aria-label="Crear Usuario"
+      >
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+      </motion.button>
 
       <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={editingUser ? "Editar" : "Nuevo"}>
         <div className="space-y-4">

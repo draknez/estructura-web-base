@@ -1,85 +1,65 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
-import { Card } from '../../components/ui/Card';
+import { Activity } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useTelemetry } from '../../context/TelemetryContext';
 
+/**
+ * HomePage: Vista minimalista limpia (Calm UI).
+ * El monitor público ha sido completamente ocultado y migrado al widget futurista exclusivo de Sa.
+ */
 const HomePage = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchStatus = async () => {
-    try {
-      const API_URL = `http://${window.location.hostname}:3000`;
-      const res = await fetch(`${API_URL}/api/users/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
-      }
-    } catch (error) {
-      console.error("Error fetching status:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  const { user } = useAuth();
+  const { isSuperAdmin, isHudOpen, toggleHud } = useTelemetry();
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="mb-8 text-center">
-        <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2 tracking-tighter">MONITOR</h1>
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.3em]">Estado en Tiempo Real</p>
-      </div>
+    <div className="relative flex flex-col items-center justify-center min-h-[72vh] px-4 select-none">
+      {/* Halo ambiental sutil de fondo */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] sm:w-[500px] h-[340px] sm:h-[500px] rounded-full blur-3xl pointer-events-none -z-10 bg-gradient-to-tr from-teal-500/10 via-cyan-500/5 to-slate-500/5 transition-opacity duration-1000" />
 
-      {loading && users.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Conectando...</p>
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="flex flex-col items-center text-center max-w-md mx-auto space-y-4"
+      >
+        {/* Isotipo minimalista */}
+        <div className="relative flex items-center justify-center">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500/20 to-emerald-500/10 border border-teal-500/20 flex items-center justify-center backdrop-blur-md shadow-lg shadow-teal-500/5">
+            <span className="text-2xl font-black bg-gradient-to-br from-teal-500 to-emerald-500 bg-clip-text text-transparent">
+              N
+            </span>
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {users.map((u, i) => (
-            <motion.div
-              key={u.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.3 }}
-              whileHover={{ y: -3, scale: 1.01 }}
+
+        {/* Wordmark limpio sin saturación ni ruido */}
+        <div className="space-y-1">
+          <h1 className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
+            Neusit
+          </h1>
+          <p className="text-xs font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+            Core Platform
+          </p>
+        </div>
+
+        {/* Acceso discreto para SuperAdmin al Widget de Telemetría */}
+        {isSuperAdmin && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="pt-4"
+          >
+            <button
+              onClick={toggleHud}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full hud-panel border border-teal-500/25 text-teal-400 hover:text-teal-300 text-[11px] font-mono tracking-wider shadow-sm hover:shadow-teal-500/20 transition-all duration-300"
             >
-              <Card className="p-4 flex items-center justify-between group hover:shadow-lg hover:shadow-teal-500/10 dark:hover:shadow-black/60 transition-all duration-300">
-                <div className="flex items-center gap-3">
-                  {/* Avatar */}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-white shadow-md transition-colors ${u.online ? 'bg-teal-600' : 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600'}`}>
-                    {u.username.charAt(0).toUpperCase()}
-                  </div>
-                  
-                  <div className="flex flex-col">
-                    <span className="font-bold text-gray-800 dark:text-gray-200 leading-tight group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                      {u.username}
-                    </span>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">
-                      ID: {u.id}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Status Pill */}
-                <div className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5 ${
-                  u.online 
-                    ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
-                    : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${u.online ? 'bg-white animate-pulse' : 'bg-gray-400 dark:bg-gray-600'}`}></span>
-                  {u.online ? 'ON' : 'OFF'}
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      )}
+              <Activity className="w-3.5 h-3.5 text-teal-400 animate-pulse" />
+              <span>{isHudOpen ? "HUD Telemetría Activo" : "Abrir HUD Telemetría (Sa)"}</span>
+            </button>
+          </motion.div>
+        )}
+      </motion.div>
     </div>
   );
 };

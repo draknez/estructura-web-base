@@ -12,18 +12,17 @@ import {
   RotateCcw, 
   Loader2, 
   CheckCircle2,
-  Layers
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import RoleBadge from '../../components/ui/RoleBadge';
+import SaFuturisticWidget from '../../components/SaFuturisticWidget';
 
 const ProfilePage = () => {
   const { user, token, logout } = useAuth();
-  const { appStyle, toggleAppStyle } = useTheme();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -246,35 +245,15 @@ const ProfilePage = () => {
                     transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                     className="overflow-hidden space-y-4 pt-4 text-left"
                   >
-                    {/* Tool 1: Selector de Estilo de UI */}
-                    <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-gray-800/50 shadow-sm dark:shadow-md dark:shadow-black/30 space-y-2">
-                      <div className="flex items-center justify-between">
+                    {/* Tool: Telemetría Futurista en Tiempo Real (Exclusivo Sa) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1">
                         <span className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
-                          <Layers className="w-3.5 h-3.5 text-teal-600" /> Estilo de UI
+                          <Activity className="w-3.5 h-3.5 text-teal-500 animate-pulse" /> Telemetría del Sistema
                         </span>
-                        <div className="inline-flex rounded-xl p-0.5 bg-gray-200/80 dark:bg-gray-800">
-                          <button
-                            onClick={toggleAppStyle}
-                            className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                              appStyle === 'modern'
-                                ? 'bg-white dark:bg-gray-950 text-teal-600 dark:text-teal-400 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                            }`}
-                          >
-                            Modern v2
-                          </button>
-                          <button
-                            onClick={toggleAppStyle}
-                            className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                              appStyle === 'classic'
-                                ? 'bg-white dark:bg-gray-950 text-teal-600 dark:text-teal-400 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                            }`}
-                          >
-                            Classic v1
-                          </button>
-                        </div>
+                        <span className="text-[10px] font-mono text-teal-500 font-bold uppercase tracking-wider">HUD Widget</span>
                       </div>
+                      <SaFuturisticWidget embedded={true} />
                     </div>
 
                     {/* Tool 2: Seed Engine (Generador de Usuarios Masivos) */}

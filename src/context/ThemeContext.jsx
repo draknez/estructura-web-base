@@ -15,11 +15,6 @@ export const ThemeProvider = ({ children }) => {
     return localStorage.getItem('navbarPosition') || 'top';
   });
 
-  // 3. App Style State (classic | modern)
-  const [appStyle, setAppStyle] = useState(() => {
-    return localStorage.getItem('appStyle') || 'modern';
-  });
-
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
@@ -30,8 +25,7 @@ export const ThemeProvider = ({ children }) => {
   // Persist settings
   useEffect(() => {
     localStorage.setItem('navbarPosition', navbarPosition);
-    localStorage.setItem('appStyle', appStyle);
-  }, [navbarPosition, appStyle]);
+  }, [navbarPosition]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
@@ -41,12 +35,8 @@ export const ThemeProvider = ({ children }) => {
     setNavbarPosition((prev) => (prev === 'top' ? 'bottom' : 'top'));
   };
 
-  const toggleAppStyle = () => {
-    setAppStyle((prev) => (prev === 'classic' ? 'modern' : 'classic'));
-  };
-
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, navbarPosition, toggleNavbarPosition, appStyle, toggleAppStyle }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, navbarPosition, toggleNavbarPosition }}>
       {children}
     </ThemeContext.Provider>
   );

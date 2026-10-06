@@ -4,3 +4,9 @@ dist
 database.sqlite
 *.log
 .DS_Store
+.c-proxy.txt
+.test-cookies.txt
+backups/
+tests/.tmp/
+server/uploads/*
+!server/uploads/.gitkeep

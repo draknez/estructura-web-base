@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -16,7 +15,6 @@ import { Navigate } from 'react-router-dom';
 const GroupsPage = () => {
   const { user, token } = useAuth();
   const { addToast } = useToast();
-  const { appStyle, navbarPosition } = useTheme();
   
   const isSa = user?.roles?.includes('Sa');
   if (!isSa) return <Navigate to="/profile" replace />;
@@ -165,7 +163,6 @@ const GroupsPage = () => {
         <div><h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter">Grupos</h1><p className="text-gray-500 text-sm uppercase font-black tracking-widest">Estructura</p></div>
         <div className="flex gap-3 w-full md:w-auto items-center">
            <div className="flex-1 md:w-48"><SearchInput value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar..." /></div>
-           {appStyle === 'classic' && <Button onClick={() => setIsCreateOpen(true)}>+ GRUPO</Button>}
         </div>
       </div>
 
@@ -183,17 +180,17 @@ const GroupsPage = () => {
         }}
       />
 
-      {appStyle === 'modern' && (
-        <motion.button 
-          whileHover={{ scale: 1.1, rotate: 90 }}
-          whileTap={{ scale: 0.9 }}
-          transition={{ type: "spring", stiffness: 400, damping: 20 }}
-          onClick={() => setIsCreateOpen(true)} 
-          className={`fixed right-6 z-40 bg-teal-600 text-white w-16 h-16 rounded-full shadow-2xl flex items-center justify-center ${navbarPosition === 'bottom' ? 'bottom-20' : 'bottom-6'}`}
-        >
-          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-        </motion.button>
-      )}
+      <motion.button 
+        whileHover={{ scale: 1.1, rotate: 90 }}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: "spring", stiffness: 400, damping: 20 }}
+        onClick={() => setIsCreateOpen(true)} 
+        className="fixed right-6 bottom-20 z-40 bg-teal-600 text-white w-16 h-16 rounded-full shadow-2xl flex items-center justify-center"
+        title="Crear Grupo"
+        aria-label="Crear Grupo"
+      >
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+      </motion.button>
 
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Nuevo Grupo">
         <div className="space-y-4">

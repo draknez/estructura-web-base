@@ -43,8 +43,14 @@ const authLimiter = rateLimit({
   message: { error: 'Demasiados intentos de inicio de sesión. Bloqueado por 15 minutos.' }
 });
 
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '30mb' }));
+app.use('/uploads', express.static(UPLOADS_DIR));
 // Aplicar limitador general a todas las rutas que empiecen por /api
 app.use('/api', apiLimiter);
 
@@ -163,6 +169,35 @@ async function initDB() {
     }
   }
 
+  // Migración: Rol 'enc' si no existe
+  try {
+    const encExists = db.exec("SELECT id FROM roles WHERE name = 'enc'");
+    if (!encExists.length || !encExists[0].values.length) {
+      db.run("INSERT INTO roles (name) VALUES ('enc')");
+      needsSave = true;
+    }
+  } catch(e) {}
+
+  // Migración: Crear tabla posts si no existe
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      cover_url TEXT,
+      author_id INTEGER,
+      status TEXT DEFAULT 'draft',
+      content_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(author_id) REFERENCES users(id)
+    )`);
+    needsSave = true;
+  } catch (e) {
+    console.error("Error creando tabla posts:", e);
+  }
+
   if (needsSave) {
     saveDB();
   }
@@ -203,6 +238,27 @@ const verifySuperAdmin = (req, res, next) => {
   }
   next();
 };
+
+const verifyCanPublish = (req, res, next) => {
+  const roles = req.userRoles || [];
+  if (roles.includes('Sa') || roles.includes('adm') || roles.includes('enc')) {
+    return next();
+  }
+  return res.status(403).json({ error: 'Permisos insuficientes para gestionar contenido' });
+};
+
+function slugify(text) {
+  return (text || '')
+    .toString()
+    .toLowerCase()
+    .trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '') || `post-${Date.now()}`;
+}
 
 // --- ENDPOINTS ---
 
@@ -854,6 +910,272 @@ app.delete('/api/groups/:id', verifyToken, verifyAdmin, (req, res) => {
     saveDB();
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// --- CONTENT STUDIO & POSTS ENDPOINTS ---
+// ==========================================
+
+// Endpoint para subida de archivos (Imágenes, Videos, Audios, Documentos)
+app.post('/api/upload', verifyToken, verifyCanPublish, (req, res) => {
+  try {
+    const { filename, data, type } = req.body;
+    if (!data) {
+      return res.status(400).json({ error: 'No se recibieron datos de archivo' });
+    }
+
+    const safeName = (filename || 'media')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .toLowerCase();
+    const uniqueFilename = `${Date.now()}_${safeName}`;
+    const filePath = path.join(UPLOADS_DIR, uniqueFilename);
+
+    let base64Clean = data;
+    if (data.includes(';base64,')) {
+      base64Clean = data.split(';base64,')[1];
+    }
+
+    const buffer = Buffer.from(base64Clean, 'base64');
+    fs.writeFileSync(filePath, buffer);
+
+    const fileUrl = `/uploads/${uniqueFilename}`;
+    res.json({
+      success: true,
+      url: fileUrl,
+      filename: uniqueFilename,
+      originalName: filename,
+      size: buffer.length,
+      type: type || 'file'
+    });
+  } catch (err) {
+    console.error('Error al subir archivo:', err);
+    res.status(500).json({ error: 'Error al procesar la subida del archivo' });
+  }
+});
+
+// Listar publicaciones
+app.get('/api/posts', (req, res) => {
+  try {
+    const token = req.headers['x-access-token'];
+    let canViewAll = false;
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        const roles = decoded.roles || [];
+        if (roles.includes('Sa') || roles.includes('adm') || roles.includes('enc')) {
+          canViewAll = true;
+        }
+      } catch (e) {}
+    }
+
+    let query = `
+      SELECT p.id, p.slug, p.title, p.summary, p.cover_url, p.status, p.author_id, p.created_at, p.updated_at,
+             u.username as author_name
+      FROM posts p
+      LEFT JOIN users u ON p.author_id = u.id
+    `;
+
+    if (!canViewAll) {
+      query += ` WHERE p.status = 'published'`;
+    }
+    query += ` ORDER BY p.created_at DESC`;
+
+    const stmt = db.prepare(query);
+    const posts = [];
+    while (stmt.step()) {
+      posts.push(stmt.getAsObject());
+    }
+
+    res.json(posts);
+  } catch (err) {
+    console.error('Error listando posts:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Obtener una publicación por slug o ID
+app.get('/api/posts/:slugOrId', (req, res) => {
+  try {
+    const param = req.params.slugOrId;
+    const isId = /^\d+$/.test(param);
+
+    const token = req.headers['x-access-token'];
+    let canViewAll = false;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        const roles = decoded.roles || [];
+        if (roles.includes('Sa') || roles.includes('adm') || roles.includes('enc')) {
+          canViewAll = true;
+        }
+      } catch (e) {}
+    }
+
+    let query = `
+      SELECT p.id, p.slug, p.title, p.summary, p.cover_url, p.status, p.content_json, p.author_id, p.created_at, p.updated_at,
+             u.username as author_name
+      FROM posts p
+      LEFT JOIN users u ON p.author_id = u.id
+      WHERE ${isId ? 'p.id = ?' : 'p.slug = ?'}
+    `;
+
+    const stmt = db.prepare(query);
+    stmt.bind([isId ? parseInt(param, 10) : param]);
+
+    if (!stmt.step()) {
+      return res.status(404).json({ error: 'Publicación no encontrada' });
+    }
+
+    const post = stmt.getAsObject();
+
+    if (post.status !== 'published' && !canViewAll) {
+      return res.status(403).json({ error: 'Esta publicación aún es un borrador no publicado' });
+    }
+
+    let blocks = [];
+    try {
+      blocks = JSON.parse(post.content_json);
+    } catch (e) {
+      blocks = [];
+    }
+
+    res.json({
+      ...post,
+      blocks
+    });
+  } catch (err) {
+    console.error('Error obteniendo post:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Crear publicación
+app.post('/api/posts', verifyToken, verifyCanPublish, (req, res) => {
+  try {
+    const { title, slug, summary, cover_url, status, blocks } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'El título es obligatorio' });
+    }
+
+    let postSlug = slug ? slugify(slug) : slugify(title);
+
+    const checkSlug = db.prepare("SELECT id FROM posts WHERE slug = ?");
+    checkSlug.bind([postSlug]);
+    if (checkSlug.step()) {
+      postSlug = `${postSlug}-${Date.now().toString().slice(-4)}`;
+    }
+
+    const contentJson = JSON.stringify(blocks || []);
+    const userRoles = req.userRoles || [];
+    const canPublishDirect = userRoles.includes('Sa') || userRoles.includes('adm');
+    const postStatus = canPublishDirect ? (status || 'draft') : 'draft';
+
+    db.run(
+      `INSERT INTO posts (slug, title, summary, cover_url, author_id, status, content_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [postSlug, title.trim(), summary || '', cover_url || '', req.userId, postStatus, contentJson]
+    );
+
+    saveDB();
+
+    const lastIdRes = db.exec("SELECT last_insert_rowid() as id");
+    const newId = lastIdRes[0].values[0][0];
+
+    res.status(201).json({
+      success: true,
+      post: {
+        id: newId,
+        slug: postSlug,
+        title,
+        status: postStatus
+      }
+    });
+  } catch (err) {
+    console.error('Error creando post:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Actualizar publicación
+app.put('/api/posts/:id', verifyToken, verifyCanPublish, (req, res) => {
+  try {
+    const id = req.params.id;
+    const { title, slug, summary, cover_url, status, blocks } = req.body;
+
+    const findStmt = db.prepare("SELECT * FROM posts WHERE id = ?");
+    findStmt.bind([id]);
+    if (!findStmt.step()) {
+      return res.status(404).json({ error: 'Publicación no encontrada' });
+    }
+    const current = findStmt.getAsObject();
+
+    const userRoles = req.userRoles || [];
+    const isAdmin = userRoles.includes('Sa') || userRoles.includes('adm');
+    if (!isAdmin && current.author_id !== req.userId) {
+      return res.status(403).json({ error: 'No tienes permiso para modificar este post' });
+    }
+
+    let postSlug = slug ? slugify(slug) : current.slug;
+    if (postSlug !== current.slug) {
+      const checkSlug = db.prepare("SELECT id FROM posts WHERE slug = ? AND id != ?");
+      checkSlug.bind([postSlug, id]);
+      if (checkSlug.step()) {
+        postSlug = `${postSlug}-${Date.now().toString().slice(-4)}`;
+      }
+    }
+
+    const contentJson = blocks !== undefined ? JSON.stringify(blocks) : current.content_json;
+    const newStatus = isAdmin ? (status !== undefined ? status : current.status) : 'draft';
+
+    db.run(
+      `UPDATE posts 
+       SET title = ?, slug = ?, summary = ?, cover_url = ?, status = ?, content_json = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        title !== undefined ? title.trim() : current.title,
+        postSlug,
+        summary !== undefined ? summary : current.summary,
+        cover_url !== undefined ? cover_url : current.cover_url,
+        newStatus,
+        contentJson,
+        id
+      ]
+    );
+
+    saveDB();
+    res.json({ success: true, slug: postSlug });
+  } catch (err) {
+    console.error('Error actualizando post:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Eliminar publicación
+app.delete('/api/posts/:id', verifyToken, verifyCanPublish, (req, res) => {
+  try {
+    const id = req.params.id;
+    const findStmt = db.prepare("SELECT * FROM posts WHERE id = ?");
+    findStmt.bind([id]);
+    if (!findStmt.step()) {
+      return res.status(404).json({ error: 'Publicación no encontrada' });
+    }
+    const current = findStmt.getAsObject();
+
+    const userRoles = req.userRoles || [];
+    const isAdmin = userRoles.includes('Sa') || userRoles.includes('adm');
+    if (!isAdmin && current.author_id !== req.userId) {
+      return res.status(403).json({ error: 'No tienes permiso para eliminar este post' });
+    }
+
+    db.run("DELETE FROM posts WHERE id = ?", [id]);
+    saveDB();
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error eliminando post:', err);
     res.status(500).json({ error: err.message });
   }
 });
